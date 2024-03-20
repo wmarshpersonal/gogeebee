@@ -1,0 +1,8 @@
+{
+  "editor.rulers": [
+    { // code limit
+      "column": 80,
+      "color": "#99999966"
+    },
+  ],
+}
