@@ -8,8 +8,7 @@ import (
 )
 
 type MBC1Mapper struct {
-	data     []byte
-	addrMask uint32
+	data []byte
 
 	Mode       MBC1Mode
 	RAMEnabled bool
@@ -58,31 +57,29 @@ func NewMBC1Mapper(cartridge Cartridge) (*MBC1Mapper, error) {
 	}
 
 	return &MBC1Mapper{
-		data:     slices.Clip(cartridge[:rom.Size()]),
-		addrMask: uint32(rom.Size()) - 1,
+		data: slices.Clip(cartridge[:rom.Size()]),
 	}, nil
 }
 
 func (mbc *MBC1Mapper) Read(addr uint16) uint8 {
 	if addr <= 0x3FFF {
-		var bs uint32
+		var bsh int
 		switch MBC1Mode(mbc.Registers[MBC1ModeSelect] & 1) {
 		case SimpleBanking:
-			bs = 0
+			bsh = 0
 		case AdvancedBanking:
-			bs = uint32(mbc.Registers[MBC1RAMROMUpper]&0b11) << 5
+			bsh = int(mbc.Registers[MBC1RAMROMUpper]&0b11) << 19
 		default:
 			panic("invalid MBC1 mode")
 		}
-		return mbc.data[((bs<<14)|uint32(addr))&mbc.addrMask]
+		return mbc.data[(int(addr&0x3FFF)|bsh<<19)%len(mbc.data)]
 	} else if addr <= 0x7FFF {
-		var regUpper uint32 = uint32(mbc.Registers[MBC1RAMROMUpper] & 0b11)
-		var regLower uint32 = uint32(mbc.Registers[MBC1ROMBank] & 0b11111)
-		if regLower == 0 {
-			regLower = 1
+		bsl := int(mbc.Registers[MBC1ROMBank] & 0b11111)
+		if bsl == 0 {
+			bsl = 1
 		}
-		var bs uint32 = (regUpper << 5) | regLower
-		return mbc.data[((bs<<14)|uint32(addr))&mbc.addrMask]
+		bsh := int(mbc.Registers[MBC1RAMROMUpper] & 0b11)
+		return mbc.data[(int(addr&0x3FFF)|(bsl<<14)|(bsh<<19))%len(mbc.data)]
 	} else {
 		panic("not implemented")
 	}
@@ -90,7 +87,10 @@ func (mbc *MBC1Mapper) Read(addr uint16) uint8 {
 
 func (mbc *MBC1Mapper) Write(addr uint16, v uint8) {
 	if addr < 0x8000 {
-		reg := MBC1Register((addr>>12)&0xF) >> 1
+		reg := MBC1Register(((addr >> 12) & 0xF) >> 1)
+		if reg == MBC1ROMBank {
+			v &= 0b11111
+		}
 		mbc.Registers[reg] = v
 	}
 }
