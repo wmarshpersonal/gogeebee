@@ -66,7 +66,7 @@ func NewMBC1Mapper(cartridge Cartridge) (*MBC1Mapper, error) {
 func (mbc *MBC1Mapper) Read(addr uint16) uint8 {
 	if addr <= 0x3FFF {
 		var bs uint32
-		switch MBC1Mode(mbc.Registers[MBC1ModeSelect]) {
+		switch MBC1Mode(mbc.Registers[MBC1ModeSelect] & 1) {
 		case SimpleBanking:
 			bs = 0
 		case AdvancedBanking:
