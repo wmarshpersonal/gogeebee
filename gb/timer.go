@@ -14,10 +14,10 @@ type Timer struct {
 	IR bool // Interrupt request
 }
 
-// DMG0Timer returns a timer with initial values set for the DMG0 model Game Boy
-func DMG0Timer() Timer {
+// DMGTimer returns a timer with initial values set for the DMG model Game Boy
+func DMGTimer() Timer {
 	return Timer{
-		counter: 0x18 << 6,
+		counter: 0xAB << 6,
 		tima:    0x00,
 		tma:     0x00,
 		tac:     0xF8,

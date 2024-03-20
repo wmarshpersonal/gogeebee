@@ -1,0 +1,171 @@
+ld r, (hl):
+  code: &ld_r_addrhl 01***110
+  exclude: 0x76 # halt
+  cycles:
+    - addr: HL
+      data: Z ←
+    - addr: PC
+      alu:  r ← Z
+      ftch: YES
+ld (hl), r:
+  code: &ld_addrhl_r 01110***
+  exclude: 0x76 # halt
+  cycles:
+    - addr: HL
+      data: ← r
+    - addr: PC
+      ftch: YES
+ld (hl), n:
+  code: &ld_addrhl_n 0x36
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: HL
+      data: ← Z
+    - addr: PC
+      ftch: YES
+ld r, r':
+  code: 01******
+  exclude: [*ld_r_addrhl, *ld_addrhl_r]
+  cycles:
+    - addr: PC
+      alu:  r ← r'
+      ftch: YES
+ld r, n:
+  code: 00***110
+  exclude: [*ld_addrhl_n]
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: PC
+      alu:  r ← Z
+      ftch: YES
+ld (bc), a:
+  code: 0x02
+  cycles:
+    - addr: BC
+      data: ← A
+    - addr: PC
+      ftch: YES
+ld (de), a:
+  code: 0x12
+  cycles:
+    - addr: DE
+      data: ← A
+    - addr: PC
+      ftch: YES
+ld a, (bc):
+  code: 0x0A
+  cycles:
+    - addr: BC
+      data: Z ←
+    - addr: PC
+      alu:  A ← Z
+      ftch: YES
+ld a, (de):
+  code: 0x1A
+  cycles:
+    - addr: DE
+      data: Z ←
+    - addr: PC
+      alu:  A ← Z
+      ftch: YES
+ldh a, (c):
+  code: 0xF2
+  cycles:
+    - addr: 0xFF00 + C
+      data: Z ←
+    - addr: PC
+      alu:  A ← Z
+      ftch: YES
+ldh (c), a:
+  code: 0xE2
+  cycles:
+    - addr: 0xFF00 + C
+      data: ← A
+    - addr: PC
+      ftch: YES
+ldh a, (n):
+  code: 0xF0
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: 0xFF00 + Z
+      data: Z ←
+    - addr: PC
+      alu:  A ← Z
+      ftch: YES
+ldh (n), a:
+  code: 0xE0
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: 0xFF00 + Z
+      data: ← A
+    - addr: PC
+      ftch: YES
+ld a, (hl-):
+  code: 0x3A
+  cycles:
+    - addr: HL
+      data: Z ←
+      idu:  --
+    - addr: PC
+      alu: A ← Z
+      ftch: YES
+ld a, (hl+):
+  code: 0x2A
+  cycles:
+    - addr: HL
+      data: Z ←
+      idu:  ++
+    - addr: PC
+      alu: A ← Z
+      ftch: YES
+ld (hl-), a:
+  code: 0x32
+  cycles:
+    - addr: HL
+      data: ← A
+      idu:  --
+    - addr: PC
+      ftch: YES
+ld (hl+), a:
+  code: 0x22
+  cycles:
+    - addr: HL
+      data: ← A
+      idu:  ++
+    - addr: PC
+      ftch: YES
+ld (nn), a:
+  code: 0xEA
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: PC
+      data: W ←
+      idu:  ++
+    - addr: WZ
+      data: ← A
+    - addr: PC
+      ftch: YES
+ld a, (nn):
+  code: 0xFA
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: PC
+      data: W ←
+      idu:  ++
+    - addr: WZ
+      data: Z ←
+    - addr: PC
+      alu:  A ← Z
+      ftch: YES

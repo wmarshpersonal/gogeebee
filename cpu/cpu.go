@@ -2,137 +2,158 @@ package cpu
 
 import (
 	"fmt"
-	"log/slog"
 )
 
-// State represents the internal CPU state. This structure can be serialized to store/refresh the
-// CPU; there is no other state driving it.
-type State struct {
-	IR           uint8 // instruction register
-	Z, W         uint8 // internal registers
-	S            uint8 // current cycle-step in instruction
-	IME          bool  // interrupts enabled
-	IE, IF       uint8 // interrupt enable, interrupt flag
-	Interrupting bool  // interrupt logic is active
-	Halted       bool  // cpu is in halt state
-	CB           bool  // CB mode?
-
-	// register file
-	B, C, D, E, H, L, A, F uint8
-	PC, SP                 uint16
-}
-
-func (s State) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.String("AF", fmt.Sprintf("$%02x%02x", s.A, s.F)),
-		slog.String("BC", fmt.Sprintf("$%02x%02x", s.B, s.C)),
-		slog.String("DE", fmt.Sprintf("$%02x%02x", s.D, s.E)),
-		slog.String("HL", fmt.Sprintf("$%02x%02x", s.H, s.L)),
-		slog.String("SP", fmt.Sprintf("$%04x", s.SP)),
-		slog.String("PC", fmt.Sprintf("$%04x", s.PC)),
-		slog.Bool("IME", s.IME),
-		slog.String("IR", fmt.Sprintf("$%02x", s.IR)),
-		slog.Any("S", s.S),
-	)
-}
-
-// NewResetState returns the state of the CPU after the GB boot rom has run.
-// AF  = 01B0
-// BC  = 0013
-// DE  = 00D8
-// HL  = 014D
-// SP  = FFFE
-// PC  = 0100
-// IME = false
-// IR	 = E0
-// S   = 02
-func NewResetState() *State {
-	return &State{
-		B:   0x00,
-		C:   0x13,
-		D:   0x00,
-		E:   0xD8,
-		H:   0x01,
-		L:   0x4D,
-		A:   0x01,
-		F:   0xB0,
-		PC:  0x0100,
-		IME: false,
-		SP:  0xFFFE,
-		IR:  0xE0,
-		S:   0x02,
-	}
-}
-
-type FlagMask uint8
+type Condition int
 
 const (
-	FlagZ FlagMask = 0x80 >> iota
-	FlagN
-	FlagH
-	FlagC
+	ZReset Condition = iota
+	ZSet
+	CReset
+	CSet
 )
+
+// Test checks the condition is true/false
+func (c Condition) Test(f uint8) bool {
+	switch c {
+	case ZReset:
+		return f&FZ == 0
+	case ZSet:
+		return f&FZ == FZ
+	case CReset:
+		return f&FC == 0
+	case CSet:
+		return f&FC == FC
+	default:
+		panic("unknown condition")
+	}
+}
 
 type ReadMemFunc func(uint16) uint8
 type WriteMemFunc func(uint16, uint8)
 
-type cpuStateOp int
+type Opcode []Cycle
 
-const (
-	incState cpuStateOp = iota + 1
-	resetState
-)
-
-type opcodeFunc func(*State, ReadMemFunc, WriteMemFunc) cpuStateOp
-
-const IF uint16 = 0xFF0F
-const IE uint16 = 0xFFFF
-
-// ExecuteMCycle runs one m-cycle of the CPU and returns the updated state.
-func ExecuteMCycle(s State, rmf ReadMemFunc, wmf WriteMemFunc) State {
-	if s.Halted { // halted?
-		if rmf(IE)&rmf(IF) != 0 {
-			s.Halted = false
-		}
-	} else { // regular operation
-		table := opcodes
-		if s.CB {
-			table = opcodesCB
-		}
-		opcode := table[s.IR]
-
-		if opcode == nil {
-			cbstr := ""
-			if s.CB {
-				cbstr = "CB"
-			}
-			panic(fmt.Sprintf("unimplemented opcode 0x%s%02X", cbstr, s.IR))
-		}
-
-		// execute
-		stateOp := opcode(&s, rmf, wmf)
-		s.F &= 0xF0
-
-		switch stateOp {
-		case incState:
-			s.S++
-		case resetState:
-			s.S = 0
-		default:
-			panic("invalid cpu state op")
-		}
-	}
-
-	return s
+type Cycle struct {
+	Addr  AddrSelector
+	Data  DataOp
+	IDU   IDUOp
+	ALU   ALUOp
+	Misc  MiscOp
+	Fetch bool
 }
 
-func fetch(s *State, rmf ReadMemFunc, addr uint16) {
-	// CB mode?
-	if s.CB {
-		s.CB = false
+var interruptOpcode []Cycle
+
+// interrupt opcode def
+func init() {
+	interruptOpcode = append(interruptOpcode, Cycle{
+		Addr: AddrPC,
+		IDU:  Dec,
+	})
+	interruptOpcode = append(interruptOpcode, Cycle{
+		Addr: AddrSP,
+		IDU:  Dec,
+	})
+	interruptOpcode = append(interruptOpcode, Cycle{
+		Addr: AddrSP,
+		IDU:  Dec,
+		Data: WritePCH,
+	})
+	interruptOpcode = append(interruptOpcode, Cycle{
+		Addr: AddrSP,
+		Data: WritePCL,
+		IDU:  IRQ,
+	})
+	interruptOpcode = append(interruptOpcode, Cycle{
+		Addr:  AddrPC,
+		Fetch: true,
+	})
+}
+
+func NextCycle(s State) (State, Cycle) {
+	if s.Halted {
+		if s.IF&s.IE != 0 {
+			s.Halted = false
+		} else {
+			return s, Cycle{}
+		}
 	}
 
-	// fetch
-	s.IR = rmf(addr)
-	s.PC = addr + 1
+	if s.S == 0 {
+		if s.IME && (s.IF&s.IE) != 0 {
+			s.IME = false
+			s.Interrupting = true
+		}
+	}
+
+	if s.Interrupting {
+		return s, interruptOpcode[s.S]
+	}
+
+	var operation Opcode
+	opcode := s.IR
+
+	if s.S == 0 && opcode == 0xCB {
+		return s, Cycle{
+			Addr: AddrPC,
+			Data: ReadIR,
+			IDU:  IncSetPC,
+			Misc: Set_CB,
+		}
+	}
+
+	var cycleIndex = s.S
+	if s.CB {
+		operation = operationsCB[opcode]
+		cycleIndex--
+	} else {
+		operation = operations[opcode]
+	}
+	if operation == nil {
+		panic(fmt.Sprintf("unimplemented opcode $%02X", opcode))
+	}
+
+	return s, operation[cycleIndex]
+}
+
+func StartCycle(s State, cycle Cycle) (State, Cycle) {
+	if s.Halted {
+		panic("halted")
+	}
+
+	s.S++ // increment state
+
+	if cycle.Fetch {
+		// add fetch to cycle
+		if cycle.Data != 0 || cycle.IDU != 0 {
+			panic("not enough free ops for fetch")
+		}
+		cycle.Data = ReadIR
+		cycle.IDU = IncSetPC
+
+		// reset state
+		s.S = 0
+		s.CB = false
+		s.Interrupting = false
+	}
+
+	s = cycle.ALU.Do(s, s.IR)
+
+	return s, cycle
+}
+
+func FinishCycle(s State, cycle Cycle, data uint8) State {
+	if s.Halted {
+		panic("halted")
+	}
+
+	opcode := s.IR
+
+	// run fixed pipeline:
+	s = cycle.Data.Do(s, data)
+	s = cycle.IDU.Do(s, cycle.Addr)
+	s = cycle.Misc.Do(s, opcode)
+
+	return s
 }

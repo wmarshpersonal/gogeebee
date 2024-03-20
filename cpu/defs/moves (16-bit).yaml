@@ -1,0 +1,69 @@
+ld rr, nn:
+  code: 00**0001
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: PC
+      data: W ←
+      idu:  ++
+    - addr: PC
+      misc: rr ← WZ
+      ftch: YES
+ld (nn), sp:
+  code: 0x08
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: PC
+      data: W ←
+      idu:  ++
+    - addr: WZ
+      data: ← SPL
+      idu:  ++
+    - addr: WZ
+      data: ← SPH
+    - addr: PC
+      ftch: YES
+ld sp, hl:
+  code: 0xF9
+  cycles:
+    - addr: HL
+      idu:  SP ←
+    - addr: PC
+      ftch: YES
+ld hl, sp+e:
+  code: 0xF8
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - alu:  L ← lo(SP +- Z)
+    - addr: PC
+      alu:  H ← hi(SP +- Z)
+      ftch: YES
+pop rr:
+  code: 11**0001
+  cycles:
+    - addr: SP
+      data: Z ←
+      idu:  ++
+    - addr: SP
+      data: W ←
+      idu:  ++
+    - addr: PC
+      misc: rrstk ← WZ
+      ftch: YES
+push rr:
+  code: 11**0101
+  cycles:
+    - addr: SP
+      idu:  --
+    - addr: SP
+      data: ← hi(rrstk)
+      idu:  --
+    - addr: SP
+      data: ← lo(rrstk)
+    - addr: PC
+      ftch: YES

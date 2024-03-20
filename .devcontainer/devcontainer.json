@@ -10,10 +10,14 @@
 				
 			]
 		}
-	}
+	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
+	"features": {
+		"ghcr.io/azutake/devcontainer-features/go-packages-install:0": {
+			"PACKAGES": "golang.org/x/tools/cmd/stringer@latest"
+		}
+	},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],

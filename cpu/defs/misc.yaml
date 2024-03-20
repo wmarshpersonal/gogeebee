@@ -1,0 +1,29 @@
+# misc
+nop:
+  code: 0x00
+  cycles:
+    - addr: PC
+      ftch: YES
+stop:
+  code: 0x10
+  cycles:
+    - addr: PC
+      misc: PANIC
+halt:
+  code: 0x76
+  cycles:
+    - addr: PC
+      misc: HALT
+      ftch: YES
+ei:
+  code: 0xFB
+  cycles:
+    - addr: PC
+      misc: IME ← 1
+      ftch: YES
+di:
+  code: 0xF3
+  cycles:
+    - addr: PC
+      misc: IME ← 0
+      ftch: YES

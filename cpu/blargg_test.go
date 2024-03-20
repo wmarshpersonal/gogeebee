@@ -12,12 +12,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
+	"github.com/wmarshpersonal/gogeebee/gb"
 )
 
 func (suite *BlarggTestSuite) TestROMs() {
 	roms := []string{
 		"gb-test-roms-master/cpu_instrs/individual/01-special.gb",
-		// "gb-test-roms-master/cpu_instrs/individual/02-interrupts.gb",
+		"gb-test-roms-master/cpu_instrs/individual/02-interrupts.gb",
 		"gb-test-roms-master/cpu_instrs/individual/03-op sp,hl.gb",
 		"gb-test-roms-master/cpu_instrs/individual/04-op r,imm.gb",
 		"gb-test-roms-master/cpu_instrs/individual/05-op rp.gb",
@@ -52,35 +53,81 @@ func (suite *BlarggTestSuite) TestROMs() {
 			// set up serial output
 			serialReader, serialWriter := io.Pipe()
 
-			// mem read/write
-			r := func(a uint16) uint8 {
-				if a == 0xFF44 { //TODO: remove temp LCD LY register value
-					return 0x90
-				}
-
-				return mem[a]
-			}
-
-			w := func(a uint16, v uint8) {
-				// serial
-				if a == 0xFF01 {
-					fmt.Fprintf(serialWriter, "%c", rune(v))
-					return
-				}
-
-				mem[a] = v
-			}
-
 			// execute CPU in goroutine until we've got a result
 			// in serial
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						suite.FailNowf("panic", "%#v", r)
+					}
+				}()
+
+				defer serialWriter.Close()
 				state := *NewResetState()
+				// timer
+				timer := gb.DMGTimer()
 				for {
 					select {
 					case <-ctx.Done():
 						return
 					default:
-						state = ExecuteMCycle(state, r, w)
+						var cycle Cycle
+						state, cycle = NextCycle(state)
+
+						timer = timer.Step()
+						if timer.IR {
+							state.IF |= 0b100
+						}
+
+						if !state.Halted {
+							state, cycle = StartCycle(state, cycle)
+							addr := cycle.Addr.Do(state)
+							var data uint8
+							if cycle.Data.RD() {
+								switch addr {
+								case 0xFF44: // LY
+									data = 0x90
+								case 0xFF04: // DIV
+									data = timer.Read(gb.DIV)
+								case 0xFF05: // TIMA
+									data = timer.Read(gb.TIMA)
+								case 0xFF06: // TMA
+									data = timer.Read(gb.TMA)
+								case 0xFF07: // TAC
+									data = timer.Read(gb.TAC)
+								case 0xFF0F: // IF
+									data = state.IF
+								case 0xFFFF: // IE
+									data = state.IE
+								default:
+									data = mem[addr]
+								}
+							}
+
+							wr, wrData := cycle.Data.WR(state, state.IR)
+							if wr {
+								switch addr {
+								case 0xFF01: // serial
+									fmt.Fprintf(serialWriter, "%c", rune(wrData))
+								case 0xFF04: // DIV
+									timer = timer.Write(gb.DIV, wrData)
+								case 0xFF05: // TIMA
+									timer = timer.Write(gb.TIMA, wrData)
+								case 0xFF06: // TMA
+									timer = timer.Write(gb.TMA, wrData)
+								case 0xFF07: // TAC
+									timer = timer.Write(gb.TAC, wrData)
+								case 0xFF0F: // IF
+									state.IF = wrData & 0x1F
+								case 0xFFFF: // IE
+									state.IE = wrData & 0x1F
+								default:
+									mem[addr] = wrData
+								}
+							}
+
+							state = FinishCycle(state, cycle, data)
+						}
 					}
 				}
 			}()

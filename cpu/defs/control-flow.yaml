@@ -1,0 +1,157 @@
+jp nn:
+  code: 0xC3
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: PC
+      data: W ←
+      idu:  ++
+    - misc: PC ← WZ
+    - addr: PC
+      ftch: YES
+jp hl:
+  code: 0xE9
+  cycles:
+    - addr: HL
+      ftch: YES
+jp cc, nn:
+  code: 110**010
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: PC
+      data: W ←
+      idu:  ++
+      misc: COND
+    # false
+    - addr: PC
+      ftch: YES
+    # true
+    - misc: PC ← WZ
+    - addr: PC
+      ftch: YES
+jr e:
+  code: 0x18
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - data: W ← ALU
+      alu:  res, Z ← PCL +- Z
+    - addr: WZ
+      ftch: YES
+jr cc, e:
+  code: 001**000
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+      misc: COND
+    # false
+    - addr: PC
+      ftch: YES
+    # true
+    - data: W ← ALU
+      alu:  res, Z ← PCL +- Z
+    - addr: WZ
+      ftch: YES
+call nn:
+  code: 0xCD
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: PC
+      data: W ←
+      idu:  ++
+    - addr: SP
+      idu:  --
+    - addr: SP
+      data: ← PCH
+      idu:  --
+    - addr: SP
+      data: ← PCL
+      misc: PC ← WZ
+    - addr: PC
+      ftch: YES
+
+call cc, nn:
+  code: 110**100
+  cycles:
+    - addr: PC
+      data: Z ←
+      idu:  ++
+    - addr: PC
+      data: W ←
+      idu:  ++
+      misc: COND
+    # false
+    - addr: PC
+      ftch: YES
+    # true
+    - addr: SP
+      idu:  --
+    - addr: SP
+      data: ← PCH
+      idu:  --
+    - addr: SP
+      data: ← PCL
+      misc: PC ← WZ
+    - addr: PC
+      ftch: YES
+ret:
+  code: 0xC9
+  cycles:
+    - addr: SP
+      data: Z ←
+      idu:  ++
+    - addr: SP
+      data: W ←
+      idu:  ++
+    - misc: PC ← WZ
+    - addr: PC
+      ftch: YES
+ret cc:
+  code: 110**000
+  cycles:
+    - misc: COND
+    # false
+    - addr: PC
+      ftch: YES
+    # true
+    - addr: SP
+      data: Z ←
+      idu:  ++
+    - addr: SP
+      data: W ←
+      idu:  ++
+    - misc: PC ← WZ
+    - addr: PC
+      ftch: YES
+reti:
+  code: 0xD9
+  cycles:
+    - addr: SP
+      data: Z ←
+      idu:  ++
+    - addr: SP
+      data: W ←
+      idu:  ++
+    - misc: PC ← WZ, IME ← 1
+    - addr: PC
+      ftch: YES
+rst:
+  code: 11***111
+  cycles:
+    - addr: SP
+      idu:  --
+    - addr: SP
+      data: ← PCH
+      idu:  --
+    - addr: SP
+      data: ← PCL
+      misc: PC ← addr
+    - addr: PC
+      ftch: YES
