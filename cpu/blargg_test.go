@@ -36,15 +36,16 @@ func (suite *BlarggTestSuite) TestROMs() {
 			defer cancel()
 
 			// setup memory & rom
+			var rom [0x8000]byte
 			var mem [0x10000]byte
-			if rom, err := suite.roms.Open(file); err != nil {
+			if romFile, err := suite.roms.Open(file); err != nil {
 				panic(err)
 			} else {
-				defer rom.Close()
-				if romData, err := io.ReadAll(rom); err != nil {
+				defer romFile.Close()
+				if romData, err := io.ReadAll(romFile); err != nil {
 					panic(err)
 				} else {
-					if copy(mem[:], romData) != 0x8000 {
+					if copy(rom[:], romData) != 0x8000 {
 						panic("bad rom size")
 					}
 				}
@@ -66,6 +67,63 @@ func (suite *BlarggTestSuite) TestROMs() {
 				state := *NewResetState()
 				// timer
 				timer := gb.DMGTimer()
+
+				// configure bus
+				bus := gb.NewDevBus()
+				ramr := func(address uint16) (value uint8) { return mem[address] }
+				ramw := func(address uint16, value uint8) { mem[address] = value }
+				bus.ConnectRange( // rom
+					func(address uint16) (value uint8) { return rom[address] },
+					func(address uint16, value uint8) {},
+					0x0000, 0x7FFF)
+				// ram
+				bus.ConnectRange(ramr, ramw,
+					0x8000, 0xFEFF)
+				bus.ConnectRange( // io
+					func(address uint16) (value uint8) {
+						switch address {
+						case 0xFF44: // LY
+							return 0x90
+						case 0xFF04: // DIV
+							return timer.Read(gb.DIV)
+						case 0xFF05: // TIMA
+							return timer.Read(gb.TIMA)
+						case 0xFF06: // TMA
+							return timer.Read(gb.TMA)
+						case 0xFF07: // TAC
+							return timer.Read(gb.TAC)
+						case 0xFF0F: // IF
+							return state.IF
+						default:
+							return 0
+						}
+					},
+					func(address uint16, value uint8) {
+						switch address {
+						case 0xFF01: // serial
+							fmt.Fprintf(serialWriter, "%c", rune(value))
+						case 0xFF04: // DIV
+							timer = timer.Write(gb.DIV, value)
+						case 0xFF05: // TIMA
+							timer = timer.Write(gb.TIMA, value)
+						case 0xFF06: // TMA
+							timer = timer.Write(gb.TMA, value)
+						case 0xFF07: // TAC
+							timer = timer.Write(gb.TAC, value)
+						case 0xFF0F: // IF
+							state.IF = value & 0x1F
+						case 0xFFFF: // IE
+							state.IE = value & 0x1F
+						}
+					},
+					0xFF00, 0xFF7F)
+				// hram
+				bus.ConnectRange(ramr, ramw, 0xFF80, 0xFFFE)
+				bus.Connect( // ie
+					func(address uint16) (value uint8) { return state.IE },
+					func(address uint16, value uint8) { state.IE = value & 0x1F },
+					0xFFFF)
+
 				for {
 					select {
 					case <-ctx.Done():
@@ -82,48 +140,15 @@ func (suite *BlarggTestSuite) TestROMs() {
 						if !state.Halted {
 							state, cycle = StartCycle(state, cycle)
 							addr := cycle.Addr.Do(state)
+
 							var data uint8
 							if cycle.Data.RD() {
-								switch addr {
-								case 0xFF44: // LY
-									data = 0x90
-								case 0xFF04: // DIV
-									data = timer.Read(gb.DIV)
-								case 0xFF05: // TIMA
-									data = timer.Read(gb.TIMA)
-								case 0xFF06: // TMA
-									data = timer.Read(gb.TMA)
-								case 0xFF07: // TAC
-									data = timer.Read(gb.TAC)
-								case 0xFF0F: // IF
-									data = state.IF
-								case 0xFFFF: // IE
-									data = state.IE
-								default:
-									data = mem[addr]
-								}
+								data = bus.Read(addr)
 							}
 
 							wr, wrData := cycle.Data.WR(state, state.IR)
 							if wr {
-								switch addr {
-								case 0xFF01: // serial
-									fmt.Fprintf(serialWriter, "%c", rune(wrData))
-								case 0xFF04: // DIV
-									timer = timer.Write(gb.DIV, wrData)
-								case 0xFF05: // TIMA
-									timer = timer.Write(gb.TIMA, wrData)
-								case 0xFF06: // TMA
-									timer = timer.Write(gb.TMA, wrData)
-								case 0xFF07: // TAC
-									timer = timer.Write(gb.TAC, wrData)
-								case 0xFF0F: // IF
-									state.IF = wrData & 0x1F
-								case 0xFFFF: // IE
-									state.IE = wrData & 0x1F
-								default:
-									mem[addr] = wrData
-								}
+								bus.Write(addr, wrData)
 							}
 
 							state = FinishCycle(state, cycle, data)
