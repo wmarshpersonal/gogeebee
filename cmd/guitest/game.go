@@ -171,6 +171,12 @@ func initGame() *Game {
 			// BGP
 			case 0xFF47:
 				return game.ppu.ReadRegister(ppu.BGP)
+			// OBP0
+			case 0xFF48:
+				return game.ppu.ReadRegister(ppu.OBP0)
+			// OBP1
+			case 0xFF49:
+				return game.ppu.ReadRegister(ppu.OBP1)
 			// WY
 			case 0xFF4A:
 				return game.ppu.ReadRegister(ppu.WY)

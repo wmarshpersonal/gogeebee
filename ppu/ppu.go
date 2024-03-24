@@ -34,7 +34,7 @@ type PPU struct {
 
 func NewPPU() *PPU {
 	return &PPU{
-		registers: [9]uint8{
+		registers: [11]uint8{
 			0x91, // LCDC
 			0x86, // STAT
 			0x00, // SCY
