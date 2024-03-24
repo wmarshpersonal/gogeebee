@@ -22,5 +22,6 @@ require (
 	github.com/hajimehoshi/ebiten/v2 v2.6.6
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	go.uber.org/multierr v1.11.0
+	golang.org/x/exp v0.0.0-20240318143956-a85f2c67cd81
 	gopkg.in/yaml.v3 v3.0.1
 )

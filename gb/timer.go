@@ -57,9 +57,9 @@ func (t Timer) Write(reg TimerReg, v uint8) Timer {
 	return t
 }
 
-// Step advances the timer logic by one M-cycle.
+// StepM advances the timer logic by one M-cycle.
 // The updated timer state is returned.
-func (t Timer) Step() Timer {
+func (t Timer) StepM() Timer {
 	prev := t
 
 	// apply DIV write...

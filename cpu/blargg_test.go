@@ -132,7 +132,7 @@ func (suite *BlarggTestSuite) TestROMs() {
 						var cycle Cycle
 						state, cycle = NextCycle(state)
 
-						timer = timer.Step()
+						timer = timer.StepM()
 						if timer.IR {
 							state.IF |= 0b100
 						}

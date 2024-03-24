@@ -151,9 +151,9 @@ func (op IDUOp) Do(s State, addr AddrSelector) State {
 		if r&0b11111 == 0 {
 			panic("IRQ 0")
 		}
-		for i := range uint8(5) {
+		for i := range uint16(5) {
 			if r&(1<<i) != 0 {
-				s.PC = 0x0040 + 0x8*uint16(i)
+				s.PC = 0x0040 + 0x8*i
 				s.IF &= ^uint8(1 << i)
 				break
 			}
