@@ -13,29 +13,25 @@ type Game struct {
 	timer gb.Timer
 	ppu   *ppu.PPU
 	bus   *gb.DevBus
-	dma   uint8
 	wram0 [0x2000]byte
 	wram1 [0x2000]byte
 	vram  [0x2000]byte
 	hram  [0x7F]byte
-	oam   [0xA0]byte
+	oam   [ppu.OAMSize]byte
 }
 
 func (g *Game) Update() error {
 	for range frameSkip {
 		g.frame++
 		for range 17556 {
-			var cycle cpu.Cycle
-			g.state, cycle = cpu.NextCycle(g.state)
-
 			for range 4 {
-				prevVblankLine := g.ppu.VBlankLine()
-				prevStatLine := g.ppu.StatLine()
-				g.ppu.StepT(g.vram[:])
-				if g.ppu.VBlankLine() && !prevVblankLine {
+				prevVblankLine := g.ppu.VBLANKLine
+				prevStatLine := g.ppu.STATLine
+				g.ppu.StepT(g.vram[:], g.oam[:])
+				if g.ppu.VBLANKLine && !prevVblankLine {
 					g.state.IF |= 1
 				}
-				if g.ppu.StatLine() && !prevStatLine {
+				if g.ppu.STATLine && !prevStatLine {
 					g.state.IF |= 2
 				}
 			}
@@ -45,19 +41,36 @@ func (g *Game) Update() error {
 				g.state.IF |= 0b100
 			}
 
-			if !g.state.Halted {
+			var cycle cpu.Cycle
+			g.state, cycle = cpu.NextCycle(g.state)
+
+			var bs gb.BusSelect
+			var cpuToken gb.Token
+
+			// start servicing cpu...
+			if !g.state.Halted { // ...if not halted
 				g.state, cycle = cpu.StartCycle(g.state, cycle)
-				addr := cycle.Addr.Do(g.state)
-
-				var data uint8
 				if cycle.Data.RD() {
-					data = g.bus.Read(addr)
+					cpuToken = bs.SelectRead(cycle.Addr.Do(g.state))
+				} else if ok, v := cycle.Data.WR(g.state, g.state.IR); ok {
+					{
+						cpuToken = bs.SelectWrite(cycle.Addr.Do(g.state), v)
+					}
 				}
+			}
 
-				wr, wrData := cycle.Data.WR(g.state, g.state.IR)
-				if wr {
-					g.bus.Write(addr, wrData)
-				}
+			// service dma
+			// note that it will override cpu's bus ops for ranges outside of hram.
+			var dmaData byte
+
+			if g.ppu.DMA.Mode == ppu.DMATransfer {
+				dmaData = bs.Commit(bs.SelectRead(g.ppu.DMA.Address), g.bus.Read, g.bus.Write)
+			}
+			g.ppu.DMA.StepM(g.oam[:], dmaData)
+
+			// finish servicing cpu...
+			if !g.state.Halted { // ...if not halted
+				data := bs.Commit(cpuToken, g.bus.Read, g.bus.Write)
 				g.state = cpu.FinishCycle(g.state, cycle, data)
 			}
 		}
@@ -76,7 +89,6 @@ func initGame() *Game {
 		timer: gb.DMGTimer(),
 		bus:   gb.NewDevBus(),
 		ppu:   ppu.NewPPU(),
-		dma:   0xFF,
 	}
 
 	mbc, err := cartridge.NewMBC1Mapper(romData)
@@ -133,125 +145,75 @@ func initGame() *Game {
 		func(address uint16) (value uint8) { return 0 },
 		func(address uint16, value uint8) {},
 		0xFEA0, 0xFEFF)
-	// FF00-FF7F: io
+	// FF00: IO: P1/JOYP
+	game.bus.Connect(
+		func(address uint16) (value uint8) { return 0xCF },
+		func(address uint16, value uint8) {},
+		0xFF00,
+	)
+	// FF01: IO: SB
+	game.bus.Connect(
+		func(address uint16) (value uint8) { return 0x00 },
+		func(address uint16, value uint8) {},
+		0xFF01,
+	)
+	// FF02: IO: SC
+	game.bus.Connect(
+		func(address uint16) (value uint8) { return 0x7E },
+		func(address uint16, value uint8) {},
+		0xFF02,
+	)
+	// FF03: !!!
+	// FF04-FF07: IO: Timer
 	game.bus.ConnectRange(
-		func(address uint16) (value uint8) {
-			switch address {
-			// P1/JOYP
-			case 0xFF00:
-				return 0xFF
-			// TIMER
-			case 0xFF04:
-				return game.timer.Read(gb.DIV)
-			case 0xFF05:
-				return game.timer.Read(gb.TIMA)
-			case 0xFF06:
-				return game.timer.Read(gb.TMA)
-			case 0xFF07:
-				return game.timer.Read(gb.TAC)
-			// IF
-			case 0xFF0F:
-				return game.state.IF
-			// LCD
-			case 0xFF40:
-				return game.ppu.ReadRegister(ppu.LCDC)
-			case 0xFF41:
-				return game.ppu.ReadRegister(ppu.STAT)
-			case 0xFF42:
-				return game.ppu.ReadRegister(ppu.SCY)
-			case 0xFF43:
-				return game.ppu.ReadRegister(ppu.SCX)
-			case 0xFF44:
-				return game.ppu.ReadRegister(ppu.LY)
-			case 0xFF45:
-				return game.ppu.ReadRegister(ppu.LYC)
-			// DMA
-			case 0xFF46:
-				return game.dma
-			// BGP
-			case 0xFF47:
-				return game.ppu.ReadRegister(ppu.BGP)
-			// OBP0
-			case 0xFF48:
-				return game.ppu.ReadRegister(ppu.OBP0)
-			// OBP1
-			case 0xFF49:
-				return game.ppu.ReadRegister(ppu.OBP1)
-			// WY
-			case 0xFF4A:
-				return game.ppu.ReadRegister(ppu.WY)
-			// WX
-			case 0xFF4B:
-				return game.ppu.ReadRegister(ppu.WX)
-			// IE
-			case 0xFFFF:
-				return game.state.IE
-			default:
-				return 0
-			}
-		},
-		func(address uint16, value uint8) {
-			switch address {
-			// TIMER
-			case 0xFF04:
-				game.timer = game.timer.Write(gb.DIV, value)
-			case 0xFF05:
-				game.timer = game.timer.Write(gb.TIMA, value)
-			case 0xFF06:
-				game.timer = game.timer.Write(gb.TMA, value)
-			case 0xFF07:
-				game.timer = game.timer.Write(gb.TAC, value)
-			// IF
-			case 0xFF0F:
-				game.state.IF = value & 0x1F
-			// LCD
-			case 0xFF40:
-				game.ppu.WriteRegister(ppu.LCDC, value)
-			case 0xFF41:
-				game.ppu.WriteRegister(ppu.STAT, value)
-			case 0xFF42:
-				game.ppu.WriteRegister(ppu.SCY, value)
-			case 0xFF43:
-				game.ppu.WriteRegister(ppu.SCX, value)
-			case 0xFF44:
-				game.ppu.WriteRegister(ppu.LY, value)
-			case 0xFF45:
-				game.ppu.WriteRegister(ppu.LYC, value)
-			// DMA
-			case 0xFF46:
-				if value > 0xDF {
-					value = 0xDF
-				}
-				game.dma = value
-				start := uint16(value) << 8
-				for i := uint16(0); i < 0xA0; i++ {
-					game.bus.Write(0xFE00+i, game.bus.Read(start+i))
-				}
-			// BGP
-			case 0xFF47:
-				game.ppu.WriteRegister(ppu.BGP, value)
-			// WY
-			case 0xFF4A:
-				game.ppu.WriteRegister(ppu.WY, value)
-			// WX
-			case 0xFF4B:
-				game.ppu.WriteRegister(ppu.WX, value)
-			// IE
-			case 0xFFFF:
-				game.state.IE = value & 0x1F
-			}
-		},
-		0xFF00, 0xFF7F)
+		func(address uint16) (value uint8) { return game.timer.Read(1 << (address & 3)) },
+		func(address uint16, value uint8) { game.timer = game.timer.Write(1<<(address&3), value) },
+		0xFF04, 0xFF07,
+	)
+	// FF08-FF0E: !!!
+	// FF0F: IO: IF
+	game.bus.Connect(
+		func(address uint16) (value uint8) { return game.state.IF & 0x1F },
+		func(address uint16, value uint8) { game.state.IF = value & 0x1F },
+		0xFF0F,
+	)
+	// FF10-FF26: IO: Audio
+	game.bus.ConnectRange(
+		func(address uint16) (value uint8) { return 0x00 },
+		func(address uint16, value uint8) {},
+		0xFF10, 0xFF26,
+	)
+	// FF27-FF2F: !!!
+	// FF30-FF3F: IO: Wave RAM
+	game.bus.ConnectRange(
+		func(address uint16) (value uint8) { return 0x00 },
+		func(address uint16, value uint8) {},
+		0xFF30, 0xFF3F,
+	)
+	// FF40-FF4B: IO: ppu
+	game.bus.ConnectRangeMasked(
+		func(address uint16) (value uint8) { return game.ppu.ReadRegister(ppu.Register(address)) },
+		func(address uint16, value uint8) { game.ppu.WriteRegister(ppu.Register(address), value) },
+		0xF,
+		0xFF40, 0xFF4B,
+	)
+	// FF4C-FF7F: IO: buncha stuff I haven't implemented, mostly CGB
+	game.bus.ConnectRange(
+		func(address uint16) (value uint8) { return 0x00 },
+		func(address uint16, value uint8) {},
+		0xFF4C, 0xFF7F,
+	)
 	// FF80-FFFE: hram
 	game.bus.ConnectRangeMasked(
 		gb.ReadSliceFunc(game.hram[:]),
 		gb.WriteSliceFunc(game.hram[:]),
 		0x7F,
 		0xFF80, 0xFFFE)
-	// FFFF: ie
+	// FFFF: IE
 	game.bus.Connect(
-		func(address uint16) (value uint8) { return game.state.IE },
+		func(address uint16) (value uint8) { return game.state.IE & 0x1F },
 		func(address uint16, value uint8) { game.state.IE = value & 0x1F },
-		0xFFFF)
+		0xFFFF,
+	)
 	return game
 }

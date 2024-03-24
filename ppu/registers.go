@@ -9,6 +9,7 @@ const (
 	SCX
 	LY
 	LYC
+	DMA
 	BGP
 	OBP0
 	OBP1
@@ -40,7 +41,7 @@ const (
 	CoincidenceIntEnableMask
 )
 
-type registers [11]uint8
+type registers [12]uint8
 
 func (r *registers) Write(register Register, value uint8) {
 	switch register {

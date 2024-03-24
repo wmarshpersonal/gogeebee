@@ -19,45 +19,39 @@ const (
 )
 
 type PPU struct {
-	registers            registers
-	counter              int // used for managing 'dots' budget for each scanline
-	bgFifo               fifo[uint8]
-	pixels               PixelBuffer
-	bgFetcher            fetcher
-	vblankLine, statLine bool
-	chomp                int // number of x-pixels to trash for scrolling this scanline
-	x                    int
-	wyTriggered          bool // whether WY==LY has occured this frame
-	wxTriggered          bool // whether we are rendering the window for the rest of this scanline
-	windowLines          int  // number of lines we've rendered the window for this frame
+	registers   registers
+	counter     int // used for managing 'dots' budget for each scanline
+	bgFifo      fifo[uint8]
+	bgFetcher   fetcher
+	chomp       int // number of x-pixels to trash for scrolling this scanline
+	x           int
+	wyTriggered bool // whether WY==LY has occured this frame
+	wxTriggered bool // whether we are rendering the window for the rest of this scanline
+	windowLines int  // number of lines we've rendered the window for this frame
+
+	VBLANKLine bool
+	STATLine   bool
+	Pixels     PixelBuffer
+	DMA        DMAUnit
 }
 
 func NewPPU() *PPU {
 	return &PPU{
-		registers: [11]uint8{
-			0x91, // LCDC
-			0x86, // STAT
-			0x00, // SCY
-			0x00, // SCX
-			0x00, // LY
-			0x00, // LYC
-			0xFC, // GBP
-			0x00, // WY
-			0x00, // WX
+		registers: registers{
+			0x91, // LCDC	$FF40
+			0x85, // STAT	$FF41
+			0x00, // SCY	$FF42
+			0x00, // SCX	$FF43
+			0x90, // LY		$FF44
+			0x00, // LYC	$FF45
+			0xFF, // DMA	$FF46
+			0xFC, // BGP	$FF47
+			0xFF, // OBP0	$FF48
+			0xFF, // OBP1	$FF49
+			0x00, // WY		$FF4A
+			0x00, // WX		$FF4B
 		},
 	}
-}
-
-func (p *PPU) Pixels() PixelBuffer {
-	return p.pixels
-}
-
-func (p *PPU) VBlankLine() bool {
-	return p.vblankLine
-}
-
-func (p *PPU) StatLine() bool {
-	return p.statLine
 }
 
 func (p *PPU) ReadRegister(register Register) uint8 {
@@ -65,21 +59,25 @@ func (p *PPU) ReadRegister(register Register) uint8 {
 }
 
 func (p *PPU) WriteRegister(register Register, value uint8) {
+	if register == DMA {
+		p.DMA = DMAUnit{Mode: DMAStartup, Address: (uint16(value) << 8)}
+	}
 	p.registers.Write(register, value)
 }
 
 // StepT runs one t-cycle of the PPU.
-func (p *PPU) StepT(vram []uint8) {
-	if p.counter == 0 {
-		if p.registers[LY] == p.registers[WY] {
-			p.wyTriggered = true
-		}
-	}
-
+func (p *PPU) StepT(vram, oam []byte) {
 	mode := Mode(p.registers[STAT] & uint8(PPUModeMask))
 	prevMode := mode
+
 	switch mode {
 	case OAMScan:
+		if p.counter == 0 { // update wy trigger if beginning of frame
+			if p.registers[LY] == p.registers[WY] {
+				p.wyTriggered = true
+			}
+		}
+
 		p.counter++
 		if p.counter == 80 {
 			mode = Drawing
@@ -88,15 +86,13 @@ func (p *PPU) StepT(vram []uint8) {
 			if p.wxTriggered {
 				p.windowLines++
 			}
-			p.wxTriggered = false
-			p.x = 0
 			// horizontal pixel chomp
 			p.chomp = int(p.registers[SCX] % 8)
 		}
 	case Drawing:
 		p.counter++
 
-		p.draw(vram, p.pixels.scanline(int(p.registers[LY])))
+		p.draw(vram, oam, p.Pixels.scanline(int(p.registers[LY])))
 
 		if p.x == ScreenWidth { // finished
 			mode = HBlank
@@ -105,6 +101,7 @@ func (p *PPU) StepT(vram []uint8) {
 		p.counter++
 		if p.counter == dotsPerLine {
 			p.counter = 0
+			p.x = 0
 			p.registers[LY]++
 			if p.registers[LY] == uint8(visibleLines) {
 				mode = VBlank
@@ -113,9 +110,12 @@ func (p *PPU) StepT(vram []uint8) {
 			}
 		}
 	case VBlank:
+		if p.counter == 0 {
+			p.windowLines = 0
+			p.wxTriggered = false
+			p.wyTriggered = false
+		}
 		p.counter++
-		p.wyTriggered = false
-		p.windowLines = 0
 		if p.counter == dotsPerLine {
 			p.counter = 0
 			p.registers[LY]++
@@ -138,26 +138,26 @@ func (p *PPU) StepT(vram []uint8) {
 	}
 
 	// updates irqs
-	p.vblankLine = mode == VBlank // vblank
-	p.statLine = false
+	p.VBLANKLine = mode == VBlank // vblank
+	p.STATLine = false
 	if p.registers[STAT]&CoincidenceIntEnableMask != 0 && coincidence { // ly==lyc
-		p.statLine = true
+		p.STATLine = true
 	}
 	if mode != prevMode { // mode has changed
 		if p.registers[STAT]&Mode0IntEnableMask != 0 && mode == 0 { // mode0
-			p.statLine = true
+			p.STATLine = true
 		}
 		if p.registers[STAT]&Mode1IntEnableMask != 0 && mode == 1 { // mode1
-			p.statLine = true
+			p.STATLine = true
 		}
 		if p.registers[STAT]&Mode2IntEnableMask != 0 && mode == 2 { // mode2
-			p.statLine = true
+			p.STATLine = true
 		}
 	}
 }
 
 // draw state handler
-func (p *PPU) draw(vram []byte, scanLine scanline) {
+func (p *PPU) draw(vram []byte, oam []byte, scanLine scanline) {
 	bgMode := bgFetch
 	if p.wxTriggered {
 		bgMode = windowFetch

@@ -6,83 +6,83 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var startOfFramePPU PPU
+
+func init() {
+	startOfFramePPU.registers[STAT] |= uint8(OAMScan)
+}
+
 func Test_ppu_StepT(t *testing.T) {
 	t.Run("takes 456 dots to render one scanline", func(t *testing.T) {
 		var (
-			vram = [0x2000]uint8{}
-			ppu  = NewPPU()
+			vram [0x2000]byte
+			oam  [OAMSize]byte
+			ppu  PPU = startOfFramePPU
 		)
 
 		for range visibleLines {
-			var dotCount int
-
-			// run until hblank
-			for Mode(ppu.registers[STAT]&uint8(PPUModeMask)) != HBlank {
-				ppu.StepT(vram[:])
-				dotCount++
+			for range 456 {
+				mode := Mode(ppu.registers[STAT] & uint8(PPUModeMask))
+				if !assert.Contains(t, []Mode{OAMScan, Drawing, HBlank}, mode) {
+					t.FailNow()
+				}
+				ppu.StepT(vram[:], oam[:])
 			}
-
-			// run until hblank is over
-			for Mode(ppu.registers[STAT]&uint8(PPUModeMask)) == HBlank {
-				ppu.StepT(vram[:])
-				dotCount++
-			}
-
-			assert.Equal(t, 456, dotCount)
 		}
 	})
 
-	t.Run("takes 65664 (144*456) dots to get to vblank", func(t *testing.T) {
+	t.Run("takes 65664 (144*456) dots to get from first oamscan to vblank", func(t *testing.T) {
 		var (
-			vram     = [0x2000]uint8{}
-			ppu      = NewPPU()
-			dotCount int
+			vram [0x2000]byte
+			oam  [OAMSize]byte
+			ppu  PPU = startOfFramePPU
 		)
 
-		// run until vblank
-		for Mode(ppu.registers[STAT]&uint8(PPUModeMask)) != VBlank {
-			ppu.StepT(vram[:])
-			dotCount++
+		for range 65664 {
+			mode := Mode(ppu.registers[STAT] & uint8(PPUModeMask))
+			if !assert.NotEqual(t, VBlank, mode) {
+				t.FailNow()
+			}
+			ppu.StepT(vram[:], oam[:])
 		}
 
-		assert.Equal(t, 65664, dotCount)
+		mode := Mode(ppu.registers[STAT] & uint8(PPUModeMask))
+		assert.Equal(t, VBlank, mode)
 	})
 
 	t.Run("takes 70224 dots to render each frame", func(t *testing.T) {
 		var (
-			vram = [0x2000]uint8{}
-			ppu  = NewPPU()
+			vram [0x2000]byte
+			oam  [OAMSize]byte
+			ppu  PPU = startOfFramePPU
 		)
 
-		for range 10 { // let's do 10 frames
-			var dotCount int
+		for range 100 { // let's do 100 frames
+			// should now be scanning line 0 (again)
+			assert.EqualValues(t, OAMScan, ppu.registers[STAT]&uint8(PPUModeMask))
+			assert.EqualValues(t, 0, ppu.registers[LY])
+			assert.EqualValues(t, 0, ppu.counter)
 
-			// run until vblank
-			for Mode(ppu.registers[STAT]&uint8(PPUModeMask)) != VBlank {
-				ppu.StepT(vram[:])
-				dotCount++
+			// run for one frame
+			for range 70224 {
+				ppu.StepT(vram[:], oam[:])
 			}
-
-			// run until oamscan
-			for Mode(ppu.registers[STAT]&uint8(PPUModeMask)) != OAMScan {
-				ppu.StepT(vram[:])
-				dotCount++
-			}
-
-			assert.Equal(t, 70224, dotCount)
 		}
 	})
 
 	t.Run("LY increases monotonically from 0 to 153, then resets", func(t *testing.T) {
 		var (
-			vram = [0x2000]uint8{}
-			ppu  = NewPPU()
+			vram [0x2000]byte
+			oam  [OAMSize]byte
+			ppu  PPU = startOfFramePPU
 		)
 
 		for line := range 154 {
 			for range 456 /* 456 dots per scanline */ {
-				assert.EqualValues(t, line, ppu.registers[LY])
-				ppu.StepT(vram[:])
+				if !assert.EqualValues(t, line, ppu.registers[LY]) {
+					t.FailNow()
+				}
+				ppu.StepT(vram[:], oam[:])
 			}
 		}
 
