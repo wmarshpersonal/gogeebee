@@ -13,9 +13,9 @@ const width, height = 160, 144
 
 // go:embed tetris.gb
 //
-// go:embed "Alfred Chicken (USA).gb"
-//
 // go:embed mario.gb
+//
+// go:embed "Alfred Chicken (USA).gb"
 //
 //go:embed zelda.gb
 var romData []byte

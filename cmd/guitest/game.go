@@ -175,10 +175,9 @@ func initGame() *Game {
 		0x1FFF, /* mask */
 		0x8000, 0x9FFF)
 	// A000-BFFF: external RAM (in cart)
-	game.bus.ConnectRangeMasked(
+	game.bus.ConnectRange(
 		rr,
 		rw,
-		0x1FFF, /* mask */
 		0xA000, 0xBFFF)
 	// C000-CFFF: work ram 1
 	game.bus.ConnectRangeMasked(
