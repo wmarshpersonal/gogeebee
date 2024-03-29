@@ -68,31 +68,8 @@ func (sl scanline) set(x int, value byte) {
 	sl[x>>2] = SetPixel(sl[x>>2], x&3, value)
 }
 
-type fifo[T comparable] struct {
-	a    [8]T
-	i    int
-	size int
-}
-
-func (f *fifo[T]) mustPush(v T) {
-	if f.size == len(f.a) {
-		panic("must push")
-	}
-	f.a[(f.size)%len(f.a)] = v
-	f.size++
-}
-
-func (f *fifo[T]) tryPop() (v T, ok bool) {
-	ok = f.size != 0
-	if ok {
-		v = f.a[(f.i)%len(f.a)]
-		f.i++
-		f.size--
-	}
-	return
-}
-
-func (f *fifo[t]) clear() {
-	f.i = 0
-	f.size = 0
+// objPixel is the data needed for the mixer to present an object pixel.
+type objPixel struct {
+	value uint8
+	flags uint8
 }

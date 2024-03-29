@@ -10,8 +10,8 @@ const tileMap1Address int = 0x9C00
 type tileAddressingMode bool
 
 const (
-	unsignedIndexing tileAddressingMode = true
-	signedIndexing                      = false
+	base8000 tileAddressingMode = true
+	base8800 tileAddressingMode = false
 )
 
 func translateTileDataAddress(

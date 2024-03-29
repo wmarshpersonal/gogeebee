@@ -22,7 +22,6 @@ type Token struct {
 }
 
 type BusSelect struct {
-	m        sync.Mutex
 	requests [2]struct {
 		once sync.Once
 
@@ -39,11 +38,9 @@ func (bs *BusSelect) Select(op BusOperation, address uint16, data byte) Token {
 		b = hram
 	}
 
-	bs.m.Lock()
 	bs.requests[b].op = op
 	bs.requests[b].addr = address
 	bs.requests[b].data = data
-	bs.m.Unlock()
 
 	return Token{b, true}
 }

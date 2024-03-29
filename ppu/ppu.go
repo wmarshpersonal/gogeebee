@@ -1,5 +1,12 @@
 package ppu
 
+import (
+	"container/list"
+	"slices"
+
+	"github.com/wmarshpersonal/gogeebee/internal/helpers"
+)
+
 const (
 	ScreenWidth  int = 160
 	ScreenHeight int = 144
@@ -19,24 +26,36 @@ const (
 )
 
 type PPU struct {
-	registers   registers
-	counter     int // used for managing 'dots' budget for each scanline
-	bgFifo      fifo[uint8]
-	bgFetcher   fetcher
-	chomp       int // number of x-pixels to trash for scrolling this scanline
-	x           int
-	wyTriggered bool // whether WY==LY has occured this frame
-	wxTriggered bool // whether we are rendering the window for the rest of this scanline
-	windowLines int  // number of lines we've rendered the window for this frame
+	registers
+	line
+	frame
+	objBufferBacking [10]Object
 
 	VBLANKLine bool
 	STATLine   bool
-	Pixels     PixelBuffer
 	DMA        DMAUnit
 }
 
-func NewPPU() *PPU {
-	return &PPU{
+// scanline-scoped state
+type line struct {
+	counter         int // used for managing 'dots' budget for each scanline
+	objBuffer       []Object
+	bgFifo, objFifo list.List
+	bgFetcher       fetch
+	objFetcher      fetch
+	x               int  // might be negative to account for scrolling
+	wxTriggered     bool // whether we have met the x+7>=WX condition this scanline
+	window          bool
+}
+
+// frame-scoped state
+type frame struct {
+	wyTriggered bool // whether WY==LY has occured this frame
+	windowLines int  // number of lines we've rendered the window for this frame
+}
+
+func DMGPPU() PPU {
+	return PPU{
 		registers: registers{
 			0x91, // LCDC	$FF40
 			0x85, // STAT	$FF41
@@ -65,126 +84,113 @@ func (p *PPU) WriteRegister(register Register, value uint8) {
 	p.registers.Write(register, value)
 }
 
-// StepT runs one t-cycle of the PPU.
-func (p *PPU) StepT(vram, oam []byte) {
-	mode := Mode(p.registers[STAT] & uint8(PPUModeMask))
-	prevMode := mode
+func (p *PPU) Mode() Mode {
+	return Mode(p.registers[STAT] & uint8(PPUModeMask))
+}
 
+// StepT runs one t-cycle of the PPU.
+func (p *PPU) StepT(vram, oam []byte, buffer *PixelBuffer) {
+	dot := p.counter
+	p.counter++
+
+	mode := p.Mode()
 	switch mode {
 	case OAMScan:
-		if p.counter == 0 { // update wy trigger if beginning of frame
-			if p.registers[LY] == p.registers[WY] {
-				p.wyTriggered = true
-			}
+		if dot == 0 { // init/clear obj buffer
+			p.objBuffer = p.objBufferBacking[:0:10]
 		}
 
-		p.counter++
-		if p.counter == 80 {
-			mode = Drawing
-			p.bgFifo.clear()
-			p.bgFetcher = fetcher{}
-			if p.wxTriggered {
-				p.windowLines++
+		// update wy trigger
+		if p.registers[LY] == p.registers[WY] {
+			p.wyTriggered = true
+		}
+		if dot&1 == 0 && len(p.objBuffer) < 10 {
+			doubleHeight := helpers.Mask(p.registers[LCDC], OBJSizeMask)
+			objIndex := dot >> 1
+			obj := OAMView(oam).At(objIndex)
+			if obj.X != 0 {
+				yMin := obj.Y
+				yMax := yMin + 8
+				if doubleHeight {
+					yMax += 8
+				}
+				if p.registers[LY]+16 >= yMin && p.registers[LY]+16 < yMax {
+					if doubleHeight {
+						if p.registers[LY]+16-obj.Y < 8 {
+							obj.Tile &= 0xFE
+						} else {
+							obj.Tile |= 1
+						}
+					}
+					p.objBuffer = append(p.objBuffer, obj)
+				}
 			}
-			// horizontal pixel chomp
-			p.chomp = int(p.registers[SCX] % 8)
+		}
+		if dot+1 == 80 {
+			slices.SortStableFunc(p.objBuffer, func(a, b Object) int {
+				return int(a.X) - int(b.X)
+			})
+			mode = Drawing
 		}
 	case Drawing:
-		p.counter++
-
-		p.draw(vram, oam, p.Pixels.scanline(int(p.registers[LY])))
-
-		if p.x == ScreenWidth { // finished
-			mode = HBlank
+		if p.x >= int(p.registers[WX])-7 { // trigger wx
+			p.wxTriggered = true
 		}
-	case HBlank:
-		p.counter++
-		if p.counter == dotsPerLine {
-			p.counter = 0
-			p.x = 0
-			p.registers[LY]++
-			if p.registers[LY] == uint8(visibleLines) {
-				mode = VBlank
-			} else {
-				mode = OAMScan
+		if pixel, ok := getPixel(vram, &p.registers, &p.frame, &p.line); ok {
+			if p.x >= 0 {
+				buffer.scanline(int(p.registers[LY])).set(p.x, pixel)
+			}
+			p.x++
+			if p.x == ScreenWidth { // finished
+				mode = HBlank
 			}
 		}
-	case VBlank:
-		if p.counter == 0 {
-			p.windowLines = 0
-			p.wxTriggered = false
-			p.wyTriggered = false
-		}
-		p.counter++
-		if p.counter == dotsPerLine {
-			p.counter = 0
+	case HBlank, VBlank:
+		if dot+1 == dotsPerLine {
+			// end of line
+			mode = OAMScan
 			p.registers[LY]++
-			if p.registers[LY] == uint8(totalLines) {
+			if p.window {
+				p.windowLines++
+			}
+			p.line = line{
+				x: -int(p.registers[SCX] % 8), // horizontal pixel chomp for scrolling
+			}
+			if p.registers[LY] >= uint8(totalLines) { // new frame
 				p.registers[LY] = 0
-				mode = OAMScan
+				p.frame = frame{}
+			} else if p.registers[LY] >= uint8(visibleLines) { // entering vblank
+				mode = VBlank
 			}
 		}
 	default:
 		panic("bad ppu mode")
 	}
 
-	coincidence := p.registers[LY] == p.registers[LYC]
-
-	// update STAT
-	p.registers[STAT] &= 0b01111000
+	// update STAT mode
+	prevMode := p.Mode()
+	p.registers[STAT] = 0x80 | (p.registers[STAT] & ^uint8(7))
 	p.registers[STAT] |= uint8(mode)
+
+	// update STAT coincidence
+	coincidence := p.registers[LY] == p.registers[LYC]
 	if coincidence {
 		p.registers[STAT] |= CoincidenceMask
 	}
 
-	// updates irqs
-	p.VBLANKLine = mode == VBlank // vblank
+	// updates interrupt lines
+	p.VBLANKLine = mode == VBlank && prevMode != mode // vblank
 	p.STATLine = false
 	if p.registers[STAT]&CoincidenceIntEnableMask != 0 && coincidence { // ly==lyc
 		p.STATLine = true
 	}
-	if mode != prevMode { // mode has changed
-		if p.registers[STAT]&Mode0IntEnableMask != 0 && mode == 0 { // mode0
-			p.STATLine = true
-		}
-		if p.registers[STAT]&Mode1IntEnableMask != 0 && mode == 1 { // mode1
-			p.STATLine = true
-		}
-		if p.registers[STAT]&Mode2IntEnableMask != 0 && mode == 2 { // mode2
-			p.STATLine = true
-		}
+	if p.registers[STAT]&Mode0IntEnableMask != 0 && mode == 0 { // mode0
+		p.STATLine = prevMode != mode
 	}
-}
-
-// draw state handler
-func (p *PPU) draw(vram []byte, oam []byte, scanLine scanline) {
-	bgMode := bgFetch
-	if p.wxTriggered {
-		bgMode = windowFetch
+	if p.registers[STAT]&Mode1IntEnableMask != 0 && mode == 1 { // mode1
+		p.STATLine = prevMode != mode
 	}
-	p.bgFetcher = p.bgFetcher.fetch(vram, &p.bgFifo, &p.registers, bgMode, p.windowLines)
-
-	if pixel, ok := p.bgFifo.tryPop(); ok {
-		if p.chomp > 0 {
-			p.chomp--
-		} else {
-			bgEnable := p.registers[LCDC]&uint8(BGEnabledMask) != 0
-			wEnable := bgEnable && p.registers[LCDC]&uint8(WindowEnabledMask) != 0
-			// TODO: -7 should be unsigned so it overflows?
-			if !p.wxTriggered && p.wyTriggered && p.x >= int(p.registers[WX])-7 && wEnable { // trigger window?
-				p.wxTriggered = true
-				p.bgFifo.clear()
-				p.bgFetcher = fetcher{}
-			} else {
-				if !bgEnable { // bg/window disabled
-					scanLine.set(p.x, 0)
-				} else {
-					palette := p.registers[BGP]
-					color := palette >> (2 * (pixel & 3)) & 3
-					scanLine.set(p.x, color)
-				}
-				p.x++
-			}
-		}
+	if p.registers[STAT]&Mode2IntEnableMask != 0 && mode == 2 { // mode2
+		p.STATLine = prevMode != mode
 	}
 }

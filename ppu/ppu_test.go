@@ -1,92 +1,112 @@
 package ppu
 
 import (
+	"math/rand"
 	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
-var startOfFramePPU PPU
-
-func init() {
-	startOfFramePPU.registers[STAT] |= uint8(OAMScan)
+type PPUTestSuite struct {
+	suite.Suite
+	ppu  PPU
+	pb   PixelBuffer
+	vram [0x2000]byte
+	oam  [OAMSize]byte
 }
 
-func Test_ppu_StepT(t *testing.T) {
-	t.Run("takes 456 dots to render one scanline", func(t *testing.T) {
+func (suite *PPUTestSuite) SetupSubTest() {
+	seed := time.Now().UTC().UnixNano()
+	suite.T().Logf("seed: %d", seed)
+
+	// randomize memory
+	r := rand.New(rand.NewSource(seed))
+	r.Read(suite.vram[:])
+	r.Read(suite.oam[:])
+
+	// make sure the PPU is in the "first dot in frame" state
+	suite.ppu.registers[STAT] &= 0b11111000
+	suite.ppu.registers[STAT] |= 0x80 | uint8(OAMScan)
+}
+
+func (suite *PPUTestSuite) TestStepT() {
+	suite.Run("takes 456 dots to render one scanline", func() {
 		var (
-			vram [0x2000]byte
-			oam  [OAMSize]byte
-			ppu  PPU = startOfFramePPU
+			ppu  = suite.ppu
+			pb   = suite.pb
+			vram = suite.vram
+			oam  = suite.oam
 		)
 
 		for range visibleLines {
 			for range 456 {
-				mode := Mode(ppu.registers[STAT] & uint8(PPUModeMask))
-				if !assert.Contains(t, []Mode{OAMScan, Drawing, HBlank}, mode) {
-					t.FailNow()
-				}
-				ppu.StepT(vram[:], oam[:])
+				suite.NotEqual(VBlank, ppu.Mode(), "mode should be scan, draw, hblank")
+				ppu.StepT(vram[:], oam[:], &pb)
 			}
 		}
+
+		// should be vblank now
+		suite.Equal(VBlank, ppu.Mode())
 	})
 
-	t.Run("takes 65664 (144*456) dots to get from first oamscan to vblank", func(t *testing.T) {
+	suite.Run("takes 65664 (144*456) dots to get from first oamscan to vblank", func() {
 		var (
-			vram [0x2000]byte
-			oam  [OAMSize]byte
-			ppu  PPU = startOfFramePPU
+			ppu  = suite.ppu
+			pb   = suite.pb
+			vram = suite.vram
+			oam  = suite.oam
 		)
 
 		for range 65664 {
-			mode := Mode(ppu.registers[STAT] & uint8(PPUModeMask))
-			if !assert.NotEqual(t, VBlank, mode) {
-				t.FailNow()
-			}
-			ppu.StepT(vram[:], oam[:])
+			suite.NotEqual(VBlank, ppu.Mode())
+			ppu.StepT(vram[:], oam[:], &pb)
 		}
 
-		mode := Mode(ppu.registers[STAT] & uint8(PPUModeMask))
-		assert.Equal(t, VBlank, mode)
+		suite.Equal(VBlank, ppu.Mode())
 	})
 
-	t.Run("takes 70224 dots to render each frame", func(t *testing.T) {
+	suite.Run("takes 70224 dots to render each frame", func() {
 		var (
-			vram [0x2000]byte
-			oam  [OAMSize]byte
-			ppu  PPU = startOfFramePPU
+			ppu  = suite.ppu
+			pb   = suite.pb
+			vram = suite.vram
+			oam  = suite.oam
 		)
 
 		for range 100 { // let's do 100 frames
-			// should now be scanning line 0 (again)
-			assert.EqualValues(t, OAMScan, ppu.registers[STAT]&uint8(PPUModeMask))
-			assert.EqualValues(t, 0, ppu.registers[LY])
-			assert.EqualValues(t, 0, ppu.counter)
-
 			// run for one frame
 			for range 70224 {
-				ppu.StepT(vram[:], oam[:])
+				ppu.StepT(vram[:], oam[:], &pb)
 			}
+
+			// should now be scanning line 0
+			suite.Equal(OAMScan, ppu.Mode())
+			suite.EqualValues(0, ppu.registers[LY])
+			suite.EqualValues(0, ppu.counter)
 		}
 	})
 
-	t.Run("LY increases monotonically from 0 to 153, then resets", func(t *testing.T) {
+	suite.Run("LY increases monotonically from 0 to 153, then resets", func() {
 		var (
-			vram [0x2000]byte
-			oam  [OAMSize]byte
-			ppu  PPU = startOfFramePPU
+			ppu  = suite.ppu
+			pb   = suite.pb
+			vram = suite.vram
+			oam  = suite.oam
 		)
 
 		for line := range 154 {
 			for range 456 /* 456 dots per scanline */ {
-				if !assert.EqualValues(t, line, ppu.registers[LY]) {
-					t.FailNow()
-				}
-				ppu.StepT(vram[:], oam[:])
+				suite.EqualValues(line, ppu.registers[LY])
+				ppu.StepT(vram[:], oam[:], &pb)
 			}
 		}
 
 		// should be 0 now
-		assert.EqualValues(t, 0, ppu.registers[LY])
+		suite.EqualValues(0, ppu.registers[LY])
 	})
+}
+
+func TestPPUSuite(t *testing.T) {
+	suite.Run(t, new(PPUTestSuite))
 }

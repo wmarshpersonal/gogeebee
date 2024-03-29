@@ -15,13 +15,10 @@ const width, height = 160, 144
 //
 // go:embed "Alfred Chicken (USA).gb"
 //
-// go:embed zelda.gb
+// go:embed mario.gb
 //
-//go:embed mario.gb
+//go:embed zelda.gb
 var romData []byte
-
-const frameSkip = 4
-const initialSkip = 0 * 1500
 
 func init() {
 	if len(romData) == 0 {
@@ -32,15 +29,9 @@ func init() {
 func main() {
 	ebiten.SetWindowTitle("gogeebee")
 	ebiten.SetWindowSize(width*4, height*4)
+	ebiten.SetTPS(60)
 
-	g := initGame()
-	for g.frame < initialSkip {
-		if err := g.Update(); err != nil {
-			panic(err)
-		}
-	}
-
-	if err := ebiten.RunGame(g); err != nil {
+	if err := ebiten.RunGame(initGame()); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -58,10 +49,9 @@ var palette = [4]color.Color{
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	var pp ppu.PackedPixels
-	pixels := &g.ppu.Pixels
 	for y := 0; y < ppu.ScreenHeight; y++ {
 		for x := 0; x < ppu.ScreenWidth; x += 4 {
-			pp = pixels[(x+y*ppu.ScreenWidth)>>2]
+			pp = g.pixels[(x+y*ppu.ScreenWidth)>>2]
 			screen.Set(x+0, y, palette[ppu.GetPixel(pp, 0)])
 			screen.Set(x+1, y, palette[ppu.GetPixel(pp, 1)])
 			screen.Set(x+2, y, palette[ppu.GetPixel(pp, 2)])
@@ -71,7 +61,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// sprite debug
 	// for i := 0; i < 40; i++ {
-	// 	y, x := g.oam[i*4], g.oam[i*4+1]
+	// 	obj := ppu.OAMView(g.oam[:]).At(i)
+	// 	y, x := obj.Y, obj.X
 	// 	if x != 0 {
 	// 		x -= 8
 	// 		y -= 16

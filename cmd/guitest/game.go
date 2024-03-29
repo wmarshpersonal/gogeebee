@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/wmarshpersonal/gogeebee/cartridge"
 	"github.com/wmarshpersonal/gogeebee/cpu"
 	"github.com/wmarshpersonal/gogeebee/gb"
@@ -8,26 +9,87 @@ import (
 )
 
 type Game struct {
-	frame int
-	state cpu.State
-	timer gb.Timer
-	ppu   *ppu.PPU
-	bus   *gb.DevBus
-	wram0 [0x2000]byte
-	wram1 [0x2000]byte
-	vram  [0x2000]byte
-	hram  [0x7F]byte
-	oam   [ppu.OAMSize]byte
+	frame      int
+	state      cpu.State
+	timer      gb.Timer
+	ppu        ppu.PPU
+	bus        *gb.DevBus
+	wram0      [0x2000]byte
+	wram1      [0x2000]byte
+	vram       [0x2000]byte
+	hram       [0x7F]byte
+	oam        [ppu.OAMSize]byte
+	buttons    JoypadButtons
+	directions JoypadDirections
+
+	pixels ppu.PixelBuffer
+}
+
+type JoypadButtons uint8
+
+const (
+	ButtonA JoypadButtons = 1 << iota
+	ButtonB
+	ButtonSelect
+	ButtonStart
+)
+
+type JoypadDirections uint8
+
+const (
+	DirectionRight JoypadDirections = 1 << iota
+	DirectionLeft
+	DirectionUp
+	DirectionDown
+)
+
+func ReadButtons() (v JoypadButtons) {
+	if ebiten.IsKeyPressed(ebiten.KeyZ) {
+		v |= ButtonA
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyX) {
+		v |= ButtonB
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyComma) {
+		v |= ButtonSelect
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyPeriod) {
+		v |= ButtonStart
+	}
+	return
+}
+
+func ReadDirections() (v JoypadDirections) {
+	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
+		v |= DirectionRight
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
+		v |= DirectionLeft
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
+		v |= DirectionUp
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowDown) {
+		v |= DirectionDown
+	}
+	return
 }
 
 func (g *Game) Update() error {
-	for range frameSkip {
+	var frameSkip int
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) {
+		frameSkip = 16
+	}
+
+	g.buttons, g.directions = ReadButtons(), ReadDirections()
+
+	for range 1 + frameSkip {
 		g.frame++
 		for range 17556 {
 			for range 4 {
 				prevVblankLine := g.ppu.VBLANKLine
 				prevStatLine := g.ppu.STATLine
-				g.ppu.StepT(g.vram[:], g.oam[:])
+				g.ppu.StepT(g.vram[:], g.oam[:], &g.pixels)
 				if g.ppu.VBLANKLine && !prevVblankLine {
 					g.state.IF |= 1
 				}
@@ -88,7 +150,7 @@ func initGame() *Game {
 		state: *cpu.NewResetState(),
 		timer: gb.DMGTimer(),
 		bus:   gb.NewDevBus(),
-		ppu:   ppu.NewPPU(),
+		ppu:   ppu.DMGPPU(),
 	}
 
 	mbc, err := cartridge.NewMBC1Mapper(romData)
@@ -98,6 +160,8 @@ func initGame() *Game {
 		rr = gb.ReadSliceFunc(romData)
 		rw = gb.WriteSliceFunc(romData)
 	}
+
+	var joyp uint8
 
 	// 0000-7FFF: rom
 	game.bus.ConnectRange(
@@ -147,8 +211,19 @@ func initGame() *Game {
 		0xFEA0, 0xFEFF)
 	// FF00: IO: P1/JOYP
 	game.bus.Connect(
-		func(address uint16) (value uint8) { return 0xCF },
-		func(address uint16, value uint8) {},
+		func(address uint16) (value uint8) {
+			value = 0xCF | joyp
+			if value&0b100000 == 0 {
+				value &= ^uint8(game.buttons)
+			}
+			if value&0b010000 == 0 {
+				value &= ^uint8(game.directions)
+			}
+			return
+		},
+		func(address uint16, value uint8) {
+			joyp = value & 0x30
+		},
 		0xFF00,
 	)
 	// FF01: IO: SB
