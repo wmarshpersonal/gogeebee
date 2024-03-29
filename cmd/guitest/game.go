@@ -44,10 +44,10 @@ const (
 )
 
 func ReadButtons() (v JoypadButtons) {
-	if ebiten.IsKeyPressed(ebiten.KeyZ) {
+	if ebiten.IsKeyPressed(ebiten.KeyX) {
 		v |= ButtonA
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyX) {
+	if ebiten.IsKeyPressed(ebiten.KeyZ) {
 		v |= ButtonB
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyComma) {
