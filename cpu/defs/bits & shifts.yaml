@@ -140,9 +140,8 @@ bit b, (hl):
   cycles:
     - addr: HL
       data: Z ←
-    - addr: HL
-      alu:  bit Z
     - addr: PC
+      alu:  bit Z
       ftch: YES
 res b, (hl):
   prefix: YES
