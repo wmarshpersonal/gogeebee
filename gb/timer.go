@@ -18,9 +18,9 @@ type TimerRegs struct {
 	tac     uint8  // FF07 — TAC: Timer control
 }
 
-// DMGTimer returns a timer with initial values set for the DMG model Game Boy
-func DMGTimer() Timer {
-	return Timer{
+// NewDMGTimer returns a timer with initial values set for the DMG model Game Boy
+func NewDMGTimer() *Timer {
+	return &Timer{
 		TimerRegs: TimerRegs{
 			counter: 0xAB << 8,
 			tima:    0x00,

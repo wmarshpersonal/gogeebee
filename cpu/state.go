@@ -50,6 +50,7 @@ func NewResetState() *State {
 		F:   0xB0,
 		PC:  0x0100,
 		IME: false,
+		IE:  0x00,
 		IF:  0xE1,
 		SP:  0xFFFE,
 		IR:  0xE0,

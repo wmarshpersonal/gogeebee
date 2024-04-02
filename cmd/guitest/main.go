@@ -51,7 +51,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	var pp ppu.PackedPixels
 	for y := 0; y < ppu.ScreenHeight; y++ {
 		for x := 0; x < ppu.ScreenWidth; x += 4 {
-			pp = g.pixels[(x+y*ppu.ScreenWidth)>>2]
+			pp = g.gb.LCD[(x+y*ppu.ScreenWidth)>>2]
 			screen.Set(x+0, y, palette[ppu.GetPixel(pp, 0)])
 			screen.Set(x+1, y, palette[ppu.GetPixel(pp, 1)])
 			screen.Set(x+2, y, palette[ppu.GetPixel(pp, 2)])

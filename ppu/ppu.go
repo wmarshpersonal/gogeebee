@@ -40,10 +40,10 @@ type frame struct {
 	windowLines int  // number of lines we've rendered the window for this frame
 }
 
-// DMG0PPU creates the PPU with the initial state of a PPU at the start of vblank,
+// NewDMG0PPU creates the PPU with the initial state of a PPU at the start of vblank,
 // as per the DMG0 model.
-func DMG0PPU() PPU {
-	return PPU{
+func NewDMG0PPU() *PPU {
+	return &PPU{
 		registers: registers{
 			0x91, // LCDC	$FF40
 			0x81, // STAT	$FF41
