@@ -89,6 +89,7 @@ func (g *Game) Update() error {
 		g.frame++
 		for range 17556 {
 			for range 4 {
+				// ppu
 				prevVblankLine := g.ppu.VBLANKLine
 				prevStatLine := g.ppu.STATLine
 				g.ppu.StepT(g.vram[:], g.oam[:], &g.pixels)
@@ -98,11 +99,11 @@ func (g *Game) Update() error {
 				if g.ppu.STATLine && !prevStatLine {
 					g.state.IF |= 2
 				}
-			}
-
-			g.timer = g.timer.StepM()
-			if g.timer.IR {
-				g.state.IF |= 4
+				// timer
+				g.timer = g.timer.StepT()
+				if g.timer.IR {
+					g.state.IF |= 4
+				}
 			}
 
 			var cycle cpu.Cycle

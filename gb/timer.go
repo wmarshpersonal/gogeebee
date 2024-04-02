@@ -2,7 +2,7 @@ package gb
 
 // Timer encapsulates the functionality of the Game Boy's timer and divider systems
 type Timer struct {
-	counter uint16 // System counter 14-bits
+	counter uint16 // System counter 16-bits
 	tima    uint8  // FF05 — TIMA: Timer counter
 	tma     uint8  // FF06 — TMA: Timer modulo
 	tac     uint8  // FF07 — TAC: Timer control
@@ -42,7 +42,7 @@ func (t Timer) Read(reg TimerReg) uint8 {
 	case TMA:
 		return t.tma
 	case TAC:
-		return (t.tac & 0b111) | 0b11111000
+		return 0xF8 | (t.tac & 7)
 	default:
 		panic("invalid timer reg")
 	}
@@ -57,16 +57,16 @@ func (t Timer) Write(reg TimerReg, v uint8) Timer {
 	return t
 }
 
-// StepM advances the timer logic by one M-cycle.
+// StepM advances the timer logic by one T-cycle.
 // The updated timer state is returned.
-func (t Timer) StepM() Timer {
+func (t Timer) StepT() Timer {
 	prev := t
 
 	// apply DIV write...
 	if t.writeSignals&DIV == DIV {
 		t.counter = 0
 	} else { // ...or increment DIV
-		t.counter = t.counter + 1&0b11111111111111 // system counter is 14-bits
+		t.counter++
 	}
 
 	// apply TMA write
@@ -80,7 +80,7 @@ func (t Timer) StepM() Timer {
 	}
 
 	// "enabled" flag is 3rd bit of TAC
-	if t.tac&0b100 == 0b100 {
+	if t.tac&4 != 0 {
 		// DIV edge fell?
 		if counterSignal(uint8(prev.counter&0xFF), prev.tac) && !counterSignal(uint8(t.counter&0xFF), t.tac) {
 			// TIMA tick
@@ -94,11 +94,11 @@ func (t Timer) StepM() Timer {
 	}
 
 	// did the TIMA edge fall?
-	timerEdge := prev.tima&0b10000000 != 0 && t.tima&0b10000000 == 0
+	timerEdge := prev.tima&0x80 != 0 && t.tima&0x80 == 0
 
 	// TIMA edge is ANDed with !TIMA write signal and put into the delay line
 	if timerEdge && t.writeSignals&TIMA != TIMA {
-		t.delay |= 0b10
+		t.delay |= 2
 	}
 	t.delay >>= 1
 
@@ -116,15 +116,15 @@ func (t Timer) StepM() Timer {
 
 func counterSignal(counter uint8, tac uint8) bool {
 	var mask uint8
-	switch tac & 0b11 {
+	switch tac & 3 {
 	case 0:
-		mask = 0b10000000
+		mask = 0x80
 	case 3:
-		mask = 0b100000
+		mask = 0x20
 	case 2:
-		mask = 0b1000
+		mask = 0x08
 	case 1:
-		mask = 0b10
+		mask = 0x02
 	}
 	return counter&mask == mask
 }
