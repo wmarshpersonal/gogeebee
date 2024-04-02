@@ -105,7 +105,7 @@ func (op DataOp) WR(s State, opcode uint8) (bool, uint8) {
 }
 
 // Do performs the data op, returning the new state.
-func (op DataOp) Do(s State, data uint8) State {
+func (op DataOp) Do(s *State, data uint8) {
 	switch op {
 	case 0:
 	case ReadIR:
@@ -117,8 +117,6 @@ func (op DataOp) Do(s State, data uint8) State {
 	case W_Equals_ALU:
 		s.W = s.ALUResult
 	}
-
-	return s
 }
 
 type IDUOp uint8
@@ -132,7 +130,7 @@ const (
 )
 
 // Do performs the IDU op, returning the new state.
-func (op IDUOp) Do(s State, addr AddrSelector) State {
+func (op IDUOp) Do(s *State, addr AddrSelector) {
 	switch op {
 	case 0:
 	case Inc, IncSetPC:
@@ -161,8 +159,6 @@ func (op IDUOp) Do(s State, addr AddrSelector) State {
 	default:
 		panic(op)
 	}
-
-	return s
 }
 
 type ALUOp uint8
@@ -231,7 +227,7 @@ const (
 )
 
 // Do performs the ALU op, returning the new state and operation result.
-func (op ALUOp) Do(s State, opcode uint8) State {
+func (op ALUOp) Do(s *State, opcode uint8) {
 	switch op {
 	case 0:
 	case LD_r_r:
@@ -401,8 +397,6 @@ func (op ALUOp) Do(s State, opcode uint8) State {
 	default:
 		panic(op)
 	}
-
-	return s
 }
 
 type MiscOp uint8
@@ -423,7 +417,7 @@ const (
 )
 
 // Do performs the MISC op, returning the new state.
-func (op MiscOp) Do(s State, opcode uint8) State {
+func (op MiscOp) Do(s *State, opcode uint8) {
 	switch op {
 	case 0:
 	case PC_Equals_WZ:
@@ -456,7 +450,6 @@ func (op MiscOp) Do(s State, opcode uint8) State {
 	default:
 		panic(op)
 	}
-	return s
 }
 
 // rToR8 converts the R part of an opcode param to an R8.

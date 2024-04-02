@@ -66,12 +66,11 @@ func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) {
 		}
 
 		// M-cycle-sensitive components
-		var cycle cpu.Cycle
-		gb.CPU, cycle = cpu.NextCycle(gb.CPU)
+		cycle := cpu.NextCycle(&gb.CPU)
 
 		// start servicing cpu...
 		if !gb.CPU.Halted { // ...if not halted
-			gb.CPU, cycle = cpu.StartCycle(gb.CPU, cycle)
+			cycle = cpu.StartCycle(&gb.CPU, cycle)
 		}
 
 		// finish servicing cpu...
@@ -82,7 +81,7 @@ func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) {
 			} else if ok, v := cycle.Data.WR(gb.CPU, gb.CPU.IR); ok { // WR
 				gb.Write(cycle.Addr.Do(gb.CPU), v)
 			}
-			gb.CPU = cpu.FinishCycle(gb.CPU, cycle, data)
+			cpu.FinishCycle(&gb.CPU, cycle, data)
 		}
 
 		// service dma

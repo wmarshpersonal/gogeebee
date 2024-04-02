@@ -68,12 +68,12 @@ func init() {
 	})
 }
 
-func NextCycle(s State) (State, Cycle) {
+func NextCycle(s *State) Cycle {
 	if s.Halted {
 		if s.IF&s.IE != 0 {
 			s.Halted = false
 		} else {
-			return s, Cycle{}
+			return Cycle{}
 		}
 	}
 
@@ -85,14 +85,14 @@ func NextCycle(s State) (State, Cycle) {
 	}
 
 	if s.Interrupting {
-		return s, interruptOpcode[s.S]
+		return interruptOpcode[s.S]
 	}
 
 	var operation Opcode
 	opcode := s.IR
 
 	if s.S == 0 && opcode == 0xCB {
-		return s, Cycle{
+		return Cycle{
 			Addr: AddrPC,
 			Data: ReadIR,
 			IDU:  IncSetPC,
@@ -111,10 +111,10 @@ func NextCycle(s State) (State, Cycle) {
 		panic(fmt.Sprintf("unimplemented opcode $%02X", opcode))
 	}
 
-	return s, operation[cycleIndex]
+	return operation[cycleIndex]
 }
 
-func StartCycle(s State, cycle Cycle) (State, Cycle) {
+func StartCycle(s *State, cycle Cycle) Cycle {
 	if s.Halted {
 		panic("halted")
 	}
@@ -135,12 +135,12 @@ func StartCycle(s State, cycle Cycle) (State, Cycle) {
 		s.Interrupting = false
 	}
 
-	s = cycle.ALU.Do(s, s.IR)
+	cycle.ALU.Do(s, s.IR)
 
-	return s, cycle
+	return cycle
 }
 
-func FinishCycle(s State, cycle Cycle, data uint8) State {
+func FinishCycle(s *State, cycle Cycle, data uint8) {
 	if s.Halted {
 		panic("halted")
 	}
@@ -148,9 +148,7 @@ func FinishCycle(s State, cycle Cycle, data uint8) State {
 	opcode := s.IR
 
 	// run fixed pipeline:
-	s = cycle.Data.Do(s, data)
-	s = cycle.IDU.Do(s, cycle.Addr)
-	s = cycle.Misc.Do(s, opcode)
-
-	return s
+	cycle.Data.Do(s, data)
+	cycle.IDU.Do(s, cycle.Addr)
+	cycle.Misc.Do(s, opcode)
 }
