@@ -1,5 +1,11 @@
 package ppu
 
+import (
+	"slices"
+
+	"github.com/wmarshpersonal/gogeebee/internal/helpers"
+)
+
 // Object is an OAM entry.
 type Object struct {
 	Y     uint8 // Y position + 16
@@ -28,4 +34,64 @@ func (v OAMView) At(n int) Object {
 		Tile:  v[i+2],
 		Flags: ObjectFlags(v[i+3]),
 	}
+}
+
+type oamState struct {
+	checkedWY  bool
+	buffer     []Object
+	objsRead   int
+	obj        Object
+	processing bool
+}
+
+func (oam *oamState) step(oamMem []byte, registers *registers, frame *frame) (done bool) {
+	var (
+		lcdc = registers[LCDC]
+		ly   = registers[LY]
+		wy   = registers[WY]
+	)
+
+	// update wy trigger
+	if !oam.checkedWY && ly == wy {
+		frame.wyTriggered = true
+	}
+	oam.checkedWY = true
+
+	if oam.processing { // odd cycle: object has been read, so process it
+		if len(oam.buffer) < 10 { // 10 objs max per scanline
+			doubleHeight := helpers.Mask(lcdc, OBJSizeMask)
+			if oam.obj.X != 0 {
+				yMin := oam.obj.Y
+				yMax := yMin + 8
+				if doubleHeight {
+					yMax += 8
+				}
+				if ly+16 >= yMin && ly+16 < yMax {
+					if doubleHeight {
+						if ly+16-oam.obj.Y < 8 {
+							oam.obj.Tile &= 0xFE
+						} else {
+							oam.obj.Tile |= 1
+						}
+					}
+					oam.buffer = append(oam.buffer, oam.obj)
+				}
+			}
+		}
+
+		// done? draw now?
+		done = oam.objsRead == 40
+		if done {
+			slices.SortStableFunc(oam.buffer, func(a, b Object) int {
+				return int(a.X) - int(b.X)
+			})
+		}
+	} else { // even cycle: read object
+		oam.obj = OAMView(oamMem).At(oam.objsRead)
+		oam.objsRead++
+	}
+
+	oam.processing = !oam.processing
+
+	return
 }

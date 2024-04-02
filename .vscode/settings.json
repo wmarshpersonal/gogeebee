@@ -5,4 +5,5 @@
       "color": "#99999966"
     },
   ],
+  "go.diagnostic.vulncheck": "Imports",
 }

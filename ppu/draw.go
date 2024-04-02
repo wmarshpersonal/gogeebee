@@ -1,48 +1,88 @@
 package ppu
 
-func shouldFetchObj(lcdc uint8, objBuffer []Object, x int) bool {
-	return x < 160 && lcdc&uint8(OBJEnabledMask) != 0 && len(objBuffer) > 0 && int(objBuffer[0].X) <= x+8
+import "container/list"
+
+type drawState struct {
+	dotCount              int
+	x                     int
+	objBuffer             []Object
+	bgFifo, objFifo       list.List
+	bgFetcher, objFetcher fetch
+	wxTriggered           bool
+	windowing             bool
 }
 
-func getPixel(vram []byte, registers *registers, frame *frame, line *line) (pixel uint8, ok bool) {
-	if shouldFetchObj(registers[LCDC], line.objBuffer, line.x) { // fetch obj
-		line.bgFetcher.step = 0
-		obj := line.objBuffer[0]
-		line.objFetcher.fetchObj(vram, *registers, &line.objFifo, obj)
-		if line.objFetcher.step == 0 {
-			line.objBuffer = line.objBuffer[1:]
-		}
-	} else { // don't fetch obj
-		line.objFetcher.step = 0
-		if line.window {
-			line.bgFetcher.fetchWindow(vram, *registers, &line.bgFifo, frame.windowLines)
-		} else {
-			line.bgFetcher.fetchBg(vram, *registers, &line.bgFifo)
-		}
+func (d *drawState) step(vMem []byte, scanline scanline, registers *registers, frame *frame) (done bool) {
+	d.dotCount++
+
+	if d.dotCount < 6 { // account for thrown-away tile
+		return
 	}
 
-	if !shouldFetchObj(registers[LCDC], line.objBuffer, line.x) {
-		// activate window?
-		if !line.window && frame.wyTriggered && line.wxTriggered {
-			enabled := registers[LCDC]&uint8(WindowEnabledMask) != 0 && registers[LCDC]&uint8(BGEnabledMask) != 0
-			if enabled {
-				line.window = true
-				line.bgFetcher = fetch{}
-				line.bgFifo.Init()
-			}
+	if d.x >= int(registers[WX])-7 { // trigger wx
+		d.wxTriggered = true
+	}
+
+	// get pixel from fifos
+	if pixel, ok := d.getPixel(vMem, registers, frame); ok {
+		if d.x >= 0 {
+			scanline.set(d.x, pixel)
 		}
-		pixel, ok = mixPixels(registers, line)
+		d.x++
+
+		done = d.x == ScreenWidth // finished?
 	}
 
 	return
 }
 
-func mixPixels(registers *registers, line *line) (pixel uint8, ok bool) {
-	if e := line.bgFifo.Front(); e != nil {
-		pixel, ok = e.Value.(uint8), true
-		line.bgFifo.Remove(e)
+func shouldFetchObj(lcdc uint8, objBuffer []Object, x int) bool {
+	return x < 160 && lcdc&uint8(OBJEnabledMask) != 0 && len(objBuffer) > 0 && int(objBuffer[0].X) <= x+8
+}
 
-		if line.x < 0 {
+func (d *drawState) getPixel(
+	vram []byte,
+	registers *registers,
+	frame *frame,
+) (pixel uint8, ok bool) {
+	if shouldFetchObj(registers[LCDC], d.objBuffer, d.x) { // fetch obj
+		d.bgFetcher.step = 0
+		obj := d.objBuffer[0]
+		d.objFetcher.fetchObj(vram, *registers, &d.objFifo, obj)
+		if d.objFetcher.step == 0 {
+			d.objBuffer = d.objBuffer[1:]
+		}
+	} else { // don't fetch obj
+		d.objFetcher.step = 0
+		if d.windowing {
+			d.bgFetcher.fetchWindow(vram, *registers, &d.bgFifo, frame.windowLines)
+		} else {
+			d.bgFetcher.fetchBg(vram, *registers, &d.bgFifo)
+		}
+	}
+
+	if !shouldFetchObj(registers[LCDC], d.objBuffer, d.x) {
+		// activate window?
+		if !d.windowing && frame.wyTriggered && d.wxTriggered {
+			enabled := registers[LCDC]&uint8(WindowEnabledMask) != 0 && registers[LCDC]&uint8(BGEnabledMask) != 0
+			if enabled {
+				d.windowing = true
+				d.bgFetcher = fetch{}
+				d.bgFifo.Init()
+			}
+		}
+		pixel, ok = d.mixPixels(registers)
+	}
+
+	return
+}
+
+func (d *drawState) mixPixels(registers *registers) (pixel uint8, ok bool) {
+	if e := d.bgFifo.Front(); e != nil {
+		pixel, ok = e.Value.(uint8), true
+		d.bgFifo.Remove(e)
+
+		if d.x < 0 {
 			return
 		}
 
@@ -56,9 +96,9 @@ func mixPixels(registers *registers, line *line) (pixel uint8, ok bool) {
 			objP  objPixel
 			objOk bool
 		)
-		if e := line.objFifo.Front(); e != nil {
+		if e := d.objFifo.Front(); e != nil {
 			objP, objOk = e.Value.(objPixel), true
-			line.objFifo.Remove(e)
+			d.objFifo.Remove(e)
 		}
 
 		if objOk && objP.value != 0 {

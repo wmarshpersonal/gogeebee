@@ -1,51 +1,37 @@
 package ppu
 
-import (
-	"container/list"
-	"slices"
-
-	"github.com/wmarshpersonal/gogeebee/internal/helpers"
-)
-
 const (
-	ScreenWidth  int = 160
-	ScreenHeight int = 144
+	ScreenWidth  = 160
+	ScreenHeight = 144
 
-	dotsPerLine  int = 456 // length of each scanline in dots
-	totalLines   int = 154 // number of total screen lines
-	visibleLines int = 144 // number of visible lines
+	lineLength    = 456 // length of each scanline in dots
+	oamModeLength = 80  // length of oam state in dots
+	totalLines    = 154 // number of total screen lines
+	visibleLines  = 144 // number of drawable/visible lines
 )
 
 type Mode uint8
 
 const (
 	OAMScan Mode = 2
+	Draw    Mode = 3
 	HBlank  Mode = 0
 	VBlank  Mode = 1
-	Drawing Mode = 3
 )
 
+// PPU for the Game Boy.
 type PPU struct {
 	registers
-	line
-	frame
-	objBufferBacking [10]Object
+	frame frame
+
+	oam    oamState
+	draw   drawState
+	hblank hblankState
+	vblank vblankState
 
 	VBLANKLine bool
 	STATLine   bool
 	DMA        DMAUnit
-}
-
-// scanline-scoped state
-type line struct {
-	counter         int // used for managing 'dots' budget for each scanline
-	objBuffer       []Object
-	bgFifo, objFifo list.List
-	bgFetcher       fetch
-	objFetcher      fetch
-	x               int  // might be negative to account for scrolling
-	wxTriggered     bool // whether we have met the x+7>=WX condition this scanline
-	window          bool
 }
 
 // frame-scoped state
@@ -54,11 +40,13 @@ type frame struct {
 	windowLines int  // number of lines we've rendered the window for this frame
 }
 
-func DMGPPU() PPU {
+// DMG0PPU creates the PPU with the initial state of a PPU at the start of vblank,
+// as per the DMG0 model.
+func DMG0PPU() PPU {
 	return PPU{
 		registers: registers{
 			0x91, // LCDC	$FF40
-			0x85, // STAT	$FF41
+			0x81, // STAT	$FF41
 			0x00, // SCY	$FF42
 			0x00, // SCX	$FF43
 			0x90, // LY		$FF44
@@ -78,10 +66,16 @@ func (p *PPU) ReadRegister(register Register) uint8 {
 }
 
 func (p *PPU) WriteRegister(register Register, value uint8) {
-	if register == DMA {
+	switch register {
+	case DMA:
 		p.DMA = DMAUnit{Mode: DMAStartup, Address: (uint16(value) << 8)}
+		p.registers[DMA] = value
+	case LY: // read-only
+	case STAT: // lower 3-bits are read-only
+		p.registers[STAT] = (value & ^uint8(7)) | (p.registers[STAT] & 7)
+	default:
+		p.registers[register] = value
 	}
-	p.registers.Write(register, value)
 }
 
 func (p *PPU) Mode() Mode {
@@ -89,79 +83,40 @@ func (p *PPU) Mode() Mode {
 }
 
 // StepT runs one t-cycle of the PPU.
-func (p *PPU) StepT(vram, oam []byte, buffer *PixelBuffer) {
-	dot := p.counter
-	p.counter++
-
+func (p *PPU) StepT(vMem, oamMem []byte, buffer *PixelBuffer) {
 	mode := p.Mode()
 	switch mode {
 	case OAMScan:
-		if dot == 0 { // init/clear obj buffer
-			p.objBuffer = p.objBufferBacking[:0:10]
-		}
-
-		// update wy trigger
-		if p.registers[LY] == p.registers[WY] {
-			p.wyTriggered = true
-		}
-		if dot&1 == 0 && len(p.objBuffer) < 10 {
-			doubleHeight := helpers.Mask(p.registers[LCDC], OBJSizeMask)
-			objIndex := dot >> 1
-			obj := OAMView(oam).At(objIndex)
-			if obj.X != 0 {
-				yMin := obj.Y
-				yMax := yMin + 8
-				if doubleHeight {
-					yMax += 8
-				}
-				if p.registers[LY]+16 >= yMin && p.registers[LY]+16 < yMax {
-					if doubleHeight {
-						if p.registers[LY]+16-obj.Y < 8 {
-							obj.Tile &= 0xFE
-						} else {
-							obj.Tile |= 1
-						}
-					}
-					p.objBuffer = append(p.objBuffer, obj)
-				}
+		if p.oam.step(oamMem, &p.registers, &p.frame) {
+			mode = Draw
+			p.draw = drawState{
+				x: -int(p.registers[SCX] % 8), // horizontal pixel chomp for scrolling,
 			}
+			p.draw.objBuffer = p.oam.buffer
 		}
-		if dot+1 == 80 {
-			slices.SortStableFunc(p.objBuffer, func(a, b Object) int {
-				return int(a.X) - int(b.X)
-			})
-			mode = Drawing
+	case Draw:
+		if p.draw.step(vMem, buffer.scanline(int(p.registers[LY])), &p.registers, &p.frame) {
+			mode = HBlank
+			p.hblank = hblankState{dotsLeft: lineLength - oamModeLength - p.draw.dotCount}
 		}
-	case Drawing:
-		if p.x >= int(p.registers[WX])-7 { // trigger wx
-			p.wxTriggered = true
-		}
-		if pixel, ok := getPixel(vram, &p.registers, &p.frame, &p.line); ok {
-			if p.x >= 0 {
-				buffer.scanline(int(p.registers[LY])).set(p.x, pixel)
-			}
-			p.x++
-			if p.x == ScreenWidth { // finished
-				mode = HBlank
-			}
-		}
-	case HBlank, VBlank:
-		if dot+1 == dotsPerLine {
-			// end of line
-			mode = OAMScan
-			p.registers[LY]++
-			if p.window {
-				p.windowLines++
-			}
-			p.line = line{
-				x: -int(p.registers[SCX] % 8), // horizontal pixel chomp for scrolling
-			}
-			if p.registers[LY] >= uint8(totalLines) { // new frame
-				p.registers[LY] = 0
-				p.frame = frame{}
-			} else if p.registers[LY] >= uint8(visibleLines) { // entering vblank
+	case HBlank:
+		if p.hblank.step(&p.registers) { // enter next line/vblank
+			if int(p.registers[LY]) == visibleLines { // entering vblank
 				mode = VBlank
+				p.vblank = vblankState{}
+			} else { // entering oam scan of next line
+				mode = OAMScan
+				p.oam = oamState{}
+				if p.frame.wyTriggered {
+					p.frame.windowLines++
+				}
 			}
+		}
+	case VBlank:
+		if p.vblank.step(&p.registers) { // end of vblank
+			mode = OAMScan
+			p.oam = oamState{}
+			p.frame = frame{}
 		}
 	default:
 		panic("bad ppu mode")

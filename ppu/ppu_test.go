@@ -26,6 +26,7 @@ func (suite *PPUTestSuite) SetupSubTest() {
 	r.Read(suite.oam[:])
 
 	// make sure the PPU is in the "first dot in frame" state
+	suite.ppu.registers[LY] = 0
 	suite.ppu.registers[STAT] &= 0b11111000
 	suite.ppu.registers[STAT] |= 0x80 | uint8(OAMScan)
 }
@@ -58,6 +59,8 @@ func (suite *PPUTestSuite) TestStepT() {
 			oam  = suite.oam
 		)
 
+		suite.Equal(OAMScan, ppu.Mode())
+
 		for range 65664 {
 			suite.NotEqual(VBlank, ppu.Mode())
 			ppu.StepT(vram[:], oam[:], &pb)
@@ -83,11 +86,10 @@ func (suite *PPUTestSuite) TestStepT() {
 			// should now be scanning line 0
 			suite.Equal(OAMScan, ppu.Mode())
 			suite.EqualValues(0, ppu.registers[LY])
-			suite.EqualValues(0, ppu.counter)
 		}
 	})
 
-	suite.Run("LY increases monotonically from 0 to 153, then resets", func() {
+	suite.Run("line 153 quirk", func() {
 		var (
 			ppu  = suite.ppu
 			pb   = suite.pb
@@ -95,14 +97,22 @@ func (suite *PPUTestSuite) TestStepT() {
 			oam  = suite.oam
 		)
 
-		for line := range 154 {
-			for range 456 /* 456 dots per scanline */ {
-				suite.EqualValues(line, ppu.registers[LY])
+		// run for 153 lines, checking LY increments each line
+		for line := range 153 {
+			suite.EqualValues(line, ppu.registers[LY])
+			for range 456 {
 				ppu.StepT(vram[:], oam[:], &pb)
 			}
 		}
 
-		// should be 0 now
+		// now we're at the beginning of line 153, and for 4 more dots we should read LY==153
+		for range 4 {
+			ppu.StepT(vram[:], oam[:], &pb)
+			suite.EqualValues(153, ppu.registers[LY])
+		}
+
+		// after next step we should be at LY==0
+		ppu.StepT(vram[:], oam[:], &pb)
 		suite.EqualValues(0, ppu.registers[LY])
 	})
 }

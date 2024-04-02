@@ -27,6 +27,8 @@ func main() {
 
 	ebiten.SetWindowTitle("gogeebee")
 	ebiten.SetWindowSize(width*4, height*4)
+	ebiten.SetScreenClearedEveryFrame(false)
+	// ebiten.SetVsyncEnabled(false)
 	ebiten.SetTPS(60)
 
 	if err := ebiten.RunGame(initGame(romData)); err != nil {

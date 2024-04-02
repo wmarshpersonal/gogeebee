@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log/slog"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/wmarshpersonal/gogeebee/cartridge"
 	"github.com/wmarshpersonal/gogeebee/cpu"
@@ -150,8 +152,10 @@ func initGame(romData []byte) *Game {
 		state: *cpu.NewResetState(),
 		timer: gb.DMGTimer(),
 		bus:   gb.NewDevBus(),
-		ppu:   ppu.DMGPPU(),
+		ppu:   ppu.DMG0PPU(),
 	}
+
+	slog.Info("startup state", slog.Any("ppu", &game.ppu))
 
 	mbc, err := cartridge.NewMBC1Mapper(romData)
 	rr := mbc.Read
