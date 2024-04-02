@@ -4,6 +4,8 @@ import (
 	_ "embed"
 	"image/color"
 	"log"
+	"log/slog"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/wmarshpersonal/gogeebee/ppu"
@@ -11,27 +13,23 @@ import (
 
 const width, height = 160, 144
 
-// go:embed tetris.gb
-//
-// go:embed mario.gb
-//
-// go:embed "Alfred Chicken (USA).gb"
-//
-//go:embed zelda.gb
-var romData []byte
-
-func init() {
-	if len(romData) == 0 {
-		panic("romData == nil")
-	}
-}
-
 func main() {
+	if len(os.Args) != 2 {
+		slog.Error("should have one arg: path to rom")
+		os.Exit(1)
+	}
+
+	romData, err := os.ReadFile(os.Args[1])
+	if err != nil {
+		slog.Error("could not read rom file", "err", err)
+		os.Exit(1)
+	}
+
 	ebiten.SetWindowTitle("gogeebee")
 	ebiten.SetWindowSize(width*4, height*4)
 	ebiten.SetTPS(60)
 
-	if err := ebiten.RunGame(initGame()); err != nil {
+	if err := ebiten.RunGame(initGame(romData)); err != nil {
 		log.Fatal(err)
 	}
 }

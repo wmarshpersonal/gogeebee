@@ -100,7 +100,7 @@ func (g *Game) Update() error {
 
 			g.timer = g.timer.StepM()
 			if g.timer.IR {
-				g.state.IF |= 0b100
+				g.state.IF |= 4
 			}
 
 			var cycle cpu.Cycle
@@ -145,7 +145,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 	return width, height
 }
 
-func initGame() *Game {
+func initGame(romData []byte) *Game {
 	game := &Game{
 		state: *cpu.NewResetState(),
 		timer: gb.DMGTimer(),
