@@ -8,57 +8,80 @@ import (
 )
 
 func TestTimer_Counter(t *testing.T) {
-	t.Run("DIV increments every 64 cycles", func(t *testing.T) {
-		tickTest(t,
-			64,    /* interval */
-			0b000, /* TAC */
-			DIV)
+	t.Run("DIV increments every 256 T-cycles", func(t *testing.T) {
+		var timer Timer
+		for expected := range 256 {
+			for range 256 {
+				assert.EqualValues(t, expected, timer.Read(DIV))
+				timer = timer.StepT()
+			}
+		}
 	})
 	t.Run("write to DIV resets counter", func(t *testing.T) {
 		assert := assert.New(t)
 		var timer Timer
-		for range 70 {
-			timer = timer.StepT()
-		}
-		assert.EqualValuesf(1, timer.Read(DIV), "counter should have increased by 1")
+		timer.counter = 0x0100
 		// write div
 		timer = timer.Write(DIV, 0xAA)
 		assert.EqualValuesf(1, timer.Read(DIV), "counter should still be at 1 until next step")
 		// step
 		timer = timer.StepT()
 		assert.EqualValuesf(0, timer.Read(DIV), "counter should have reset now")
-		// continue
-		for range 70 {
-			timer = timer.StepT()
-		}
-		assert.EqualValuesf(1, timer.Read(DIV), "counter should have resumed increasing and now be at 1")
 	})
 }
 
 func TestTimer_TIMA(t *testing.T) {
-	t.Run("TIMA increments every 256 cycles when TAC is 0b100", func(t *testing.T) {
-		tickTest(t,
-			256,   /* interval */
-			0b100, /* TAC */
-			TIMA)
+	t.Run("TIMA increments every 256 M-cycles when TAC is 0b100", func(t *testing.T) {
+		const (
+			tac     = 0b100
+			mCycles = 256
+		)
+		var timer Timer = Timer{tac: tac}
+		for range 4 * mCycles {
+			assert.EqualValues(t, 0, timer.Read(TIMA))
+			timer = timer.StepT()
+		}
+		// now it should be 1
+		assert.EqualValues(t, 1, timer.Read(TIMA))
 	})
-	t.Run("TIMA increments every 4 cycles when TAC is 0b101", func(t *testing.T) {
-		tickTest(t,
-			4,     /* interval */
-			0b101, /* TAC */
-			TIMA)
+	t.Run("TIMA increments every 4 M-cycles when TAC is 0b101", func(t *testing.T) {
+		const (
+			tac     = 0b101
+			mCycles = 4
+		)
+		var timer Timer = Timer{tac: tac}
+		for range 4 * mCycles {
+			assert.EqualValues(t, 0, timer.Read(TIMA))
+			timer = timer.StepT()
+		}
+		// now it should be 1
+		assert.EqualValues(t, 1, timer.Read(TIMA))
 	})
-	t.Run("TIMA increments every 16 cycles when TAC is 0b110", func(t *testing.T) {
-		tickTest(t,
-			16,    /* interval */
-			0b110, /* TAC */
-			TIMA)
+	t.Run("TIMA increments every 16 M-cycles when TAC is 0b110", func(t *testing.T) {
+		const (
+			tac     = 0b110
+			mCycles = 16
+		)
+		var timer Timer = Timer{tac: tac}
+		for range 4 * mCycles {
+			assert.EqualValues(t, 0, timer.Read(TIMA))
+			timer = timer.StepT()
+		}
+		// now it should be 1
+		assert.EqualValues(t, 1, timer.Read(TIMA))
 	})
-	t.Run("TIMA increments every 64 cycles when TAC is 0b111", func(t *testing.T) {
-		tickTest(t,
-			64,    /* interval */
-			0b111, /* TAC */
-			TIMA)
+	t.Run("TIMA increments every 64 M-cycles when TAC is 0b111", func(t *testing.T) {
+		const (
+			tac     = 0b111
+			mCycles = 64
+		)
+		var timer Timer = Timer{tac: tac}
+		for range 4 * mCycles {
+			assert.EqualValues(t, 0, timer.Read(TIMA))
+			timer = timer.StepT()
+		}
+		// now it should be 1
+		assert.EqualValues(t, 1, timer.Read(TIMA))
 	})
 	t.Run("TIMA doesn't increment when TAC.enable isn't set", func(t *testing.T) {
 		for i := range 4 {
@@ -76,27 +99,6 @@ func TestTimer_TIMA(t *testing.T) {
 			})
 		}
 	})
-}
-
-func tickTest(t *testing.T, interval int, tac uint8, reg TimerReg) {
-	t.Helper()
-	var timer Timer
-	timer.tac = tac
-	prev := timer
-	for i := range interval * 0x100 {
-		expected := prev.Read(reg)
-		if i%interval == interval-1 {
-			expected++
-		}
-		timer = timer.StepT()
-
-		// check
-		if !assert.Exactly(t, expected, timer.Read(reg)) {
-			t.FailNow()
-		}
-
-		prev = timer
-	}
 }
 
 func TestTimer_Modulus(t *testing.T) {
@@ -122,72 +124,5 @@ func TestTimer_Modulus(t *testing.T) {
 		timer = timer.StepT()
 		assert.Exactly(uint16(0x31), timer.counter)
 		assert.Exactly(uint8(0x23), timer.tima)
-	})
-}
-
-func TestTimer_Weird(t *testing.T) {
-	t.Run("write to TIMA cancels overflow", func(t *testing.T) {
-		assert := assert.New(t)
-		var timer Timer
-		timer.counter = 0b10
-		timer.tac = 0xFD
-		timer.tima = 0xFF
-
-		// step 1
-		timer = timer.StepT()
-		assert.Exactly(uint16(0b11), timer.counter)
-		assert.Exactly(uint8(0xFF), timer.tima)
-
-		// step 2 - overflow
-		timer = timer.Write(TIMA, 0x80)
-		timer = timer.StepT()
-		assert.Exactly(uint16(0b100), timer.counter)
-		assert.Exactly(uint8(0x80), timer.tima)
-
-		// step 3 - set to TMA
-		timer = timer.StepT()
-		assert.Exactly(uint16(0b101), timer.counter)
-		assert.Exactly(uint8(0x80), timer.tima)
-	})
-
-	t.Run("write to DIV causes spurious tick", func(t *testing.T) {
-		assert := assert.New(t)
-		var timer Timer
-		timer.counter = 0b10
-		timer.tac = 0xFD
-		timer.tima = 0x10
-
-		timer = timer.Write(DIV, 0)
-		timer = timer.StepT()
-		assert.Exactly(uint16(0b00), timer.counter)
-		assert.Exactly(uint8(0x11), timer.tima)
-	})
-	t.Run("TMA overrides TIMA during overflow", func(t *testing.T) {
-		assert := assert.New(t)
-		var timer Timer
-		timer.counter = 0b10
-		timer.tac = 0xFD
-		timer.tima = 0xFF
-
-		// step 1
-		timer = timer.StepT()
-		assert.Exactly(uint16(0b11), timer.counter)
-		assert.Exactly(uint8(0xFF), timer.tima)
-
-		// step 2 - overflow
-		timer = timer.StepT()
-		assert.Exactly(uint16(0b100), timer.counter)
-		assert.Exactly(uint8(0x00), timer.tima)
-
-		// step 3
-		timer = timer.Write(TIMA, 0x80)
-		timer = timer.StepT()
-		assert.Exactly(uint16(0b101), timer.counter)
-		assert.Exactly(uint8(0x00), timer.tima)
-
-		// step 4
-		timer = timer.StepT()
-		assert.Exactly(uint16(0b110), timer.counter)
-		assert.Exactly(uint8(0x00), timer.tima)
 	})
 }

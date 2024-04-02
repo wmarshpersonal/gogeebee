@@ -36,7 +36,7 @@ const (
 func (t Timer) Read(reg TimerReg) uint8 {
 	switch reg {
 	case DIV:
-		return uint8(t.counter >> 6)
+		return uint8(t.counter >> 8)
 	case TIMA:
 		return t.tima
 	case TMA:
@@ -82,7 +82,7 @@ func (t Timer) StepT() Timer {
 	// "enabled" flag is 3rd bit of TAC
 	if t.tac&4 != 0 {
 		// DIV edge fell?
-		if counterSignal(uint8(prev.counter&0xFF), prev.tac) && !counterSignal(uint8(t.counter&0xFF), t.tac) {
+		if counterSignal(prev.counter, prev.tac) && !counterSignal(t.counter, t.tac) {
 			// TIMA tick
 			t.tima++
 		}
@@ -114,8 +114,8 @@ func (t Timer) StepT() Timer {
 	return t
 }
 
-func counterSignal(counter uint8, tac uint8) bool {
-	var mask uint8
+func counterSignal[T ~uint16](counter T, tac uint8) bool {
+	var mask uint16
 	switch tac & 3 {
 	case 0:
 		mask = 0x80
@@ -126,5 +126,6 @@ func counterSignal(counter uint8, tac uint8) bool {
 	case 1:
 		mask = 0x02
 	}
-	return counter&mask == mask
+	var counter14 = uint16(counter) >> 2
+	return counter14&mask == mask
 }

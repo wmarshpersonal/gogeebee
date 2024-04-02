@@ -2,7 +2,6 @@
   // https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
-
     {
       "name": "cpu_instrs",
       "type": "go",
@@ -11,6 +10,16 @@
       "program": "${workspaceFolder}/cmd/guitest/",
       "args": [
         "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/cpu_instrs/cpu_instrs.gb"
+      ]
+    },
+    {
+      "name": "cpu_instrs:02-interrupts.gb",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/cpu_instrs/individual/02-interrupts.gb"
       ]
     },
     {
