@@ -38,16 +38,6 @@ func (s State) LogValue() slog.Value {
 }
 
 // NewResetState returns the state of the CPU after the GB boot rom has run.
-// AF  = 01B0
-// BC  = 0013
-// DE  = 00D8
-// HL  = 014D
-// SP  = FFFE
-// PC  = 0100
-// IME = false
-// IF =  E1
-// IR	 = E0
-// S   = 02
 func NewResetState() *State {
 	return &State{
 		B:   0x00,
