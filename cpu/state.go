@@ -6,8 +6,6 @@ import (
 )
 
 // State represents the internal CPU state.
-// This structure can be serialized to store/refresh the CPU.
-// There is no other state driving it.
 type State struct {
 	IR              uint8 // instruction register
 	Z, W, ALUResult uint8 // internal registers
@@ -79,7 +77,7 @@ const (
 )
 
 // R8 returns the value of the 8-bit register r.
-func (s State) R8(r R8) uint8 {
+func (s *State) R8(r R8) uint8 {
 	switch r {
 	case B:
 		return s.B
@@ -135,7 +133,7 @@ const (
 )
 
 // R16 returns the value of the 16-bit register rr.
-func (s State) R16(rr R16) uint16 {
+func (s *State) R16(rr R16) uint16 {
 	switch rr {
 	case BC:
 		return mk16(s.B, s.C)
