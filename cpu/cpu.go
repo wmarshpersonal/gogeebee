@@ -29,9 +29,6 @@ func (c Condition) Test(f uint8) bool {
 	}
 }
 
-type ReadMemFunc func(uint16) uint8
-type WriteMemFunc func(uint16, uint8)
-
 type Opcode []Cycle
 
 type Cycle struct {
