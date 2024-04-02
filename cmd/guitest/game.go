@@ -100,7 +100,7 @@ func (g *Game) Update() error {
 					g.state.IF |= 2
 				}
 				// timer
-				g.timer = g.timer.StepT()
+				g.timer.StepT()
 				if g.timer.IR {
 					g.state.IF |= 4
 				}
@@ -246,7 +246,7 @@ func initGame(romData []byte) *Game {
 	// FF04-FF07: IO: Timer
 	game.bus.ConnectRange(
 		func(address uint16) (value uint8) { return game.timer.Read(1 << (address & 3)) },
-		func(address uint16, value uint8) { game.timer = game.timer.Write(1<<(address&3), value) },
+		func(address uint16, value uint8) { game.timer.Write(1<<(address&3), value) },
 		0xFF04, 0xFF07,
 	)
 	// FF08-FF0E: !!!

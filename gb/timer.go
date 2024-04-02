@@ -2,10 +2,7 @@ package gb
 
 // Timer encapsulates the functionality of the Game Boy's timer and divider systems
 type Timer struct {
-	counter uint16 // System counter 16-bits
-	tima    uint8  // FF05 — TIMA: Timer counter
-	tma     uint8  // FF06 — TMA: Timer modulo
-	tac     uint8  // FF07 — TAC: Timer control
+	TimerRegs
 
 	busData      uint8
 	writeSignals TimerReg
@@ -14,13 +11,22 @@ type Timer struct {
 	IR bool // Interrupt request
 }
 
+type TimerRegs struct {
+	counter uint16 // System counter 16-bits
+	tima    uint8  // FF05 — TIMA: Timer counter
+	tma     uint8  // FF06 — TMA: Timer modulo
+	tac     uint8  // FF07 — TAC: Timer control
+}
+
 // DMGTimer returns a timer with initial values set for the DMG model Game Boy
 func DMGTimer() Timer {
 	return Timer{
-		counter: 0xAB << 6,
-		tima:    0x00,
-		tma:     0x00,
-		tac:     0xF8,
+		TimerRegs: TimerRegs{
+			counter: 0xAB << 8,
+			tima:    0x00,
+			tma:     0x00,
+			tac:     0xF8,
+		},
 	}
 }
 
@@ -33,7 +39,8 @@ const (
 	TAC
 )
 
-func (t Timer) Read(reg TimerReg) uint8 {
+// Read reads the selected register from the timer.
+func (t *Timer) Read(reg TimerReg) uint8 {
 	switch reg {
 	case DIV:
 		return uint8(t.counter >> 8)
@@ -48,19 +55,18 @@ func (t Timer) Read(reg TimerReg) uint8 {
 	}
 }
 
-// Write writes to the selected register.
-// The updated timer state is returned.
-func (t Timer) Write(reg TimerReg, v uint8) Timer {
+// Write writes to the selected timer register.
+func (t *Timer) Write(reg TimerReg, v uint8) {
 	t.writeSignals |= reg
 	t.busData = v
-
-	return t
 }
 
-// StepM advances the timer logic by one T-cycle.
-// The updated timer state is returned.
-func (t Timer) StepT() Timer {
-	prev := t
+// StepT advances the timer logic by one T-cycle.
+func (t *Timer) StepT() {
+	var (
+		prev      TimerRegs = t.TimerRegs
+		prevDelay uint8     = t.delay
+	)
 
 	// apply DIV write...
 	if t.writeSignals&DIV == DIV {
@@ -104,14 +110,12 @@ func (t Timer) StepT() Timer {
 
 	// set TIMA to TMA if delay shifts out a value
 	t.IR = false
-	if prev.delay&1 == 1 {
+	if prevDelay&1 == 1 {
 		t.IR = true
 		t.tima = t.tma
 	}
 
 	t.writeSignals = 0
-
-	return t
 }
 
 func counterSignal[T ~uint16](counter T, tac uint8) bool {
