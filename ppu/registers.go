@@ -17,10 +17,8 @@ const (
 	WX
 )
 
-type LCDCMask uint8
-
 const (
-	BGEnabledMask LCDCMask = 1 << iota
+	BGEnabledMask uint8 = 1 << iota
 	OBJEnabledMask
 	OBJSizeMask
 	BGTileMapMask
@@ -30,11 +28,9 @@ const (
 	LCDEnabledMask
 )
 
-type STATMask uint8
-
 const (
-	PPUModeMask     STATMask = 0b11
-	CoincidenceMask          = 1 << (iota + 1)
+	PPUModeMask     uint8 = 0b11
+	CoincidenceMask       = 1 << (iota + 1)
 	Mode0IntEnableMask
 	Mode1IntEnableMask
 	Mode2IntEnableMask

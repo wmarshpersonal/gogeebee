@@ -2,8 +2,6 @@ package ppu
 
 import (
 	"slices"
-
-	"github.com/wmarshpersonal/gogeebee/internal/helpers"
 )
 
 // Object is an OAM entry.
@@ -11,13 +9,11 @@ type Object struct {
 	Y     uint8 // Y position + 16
 	X     uint8 // X position + 8
 	Tile  uint8
-	Flags ObjectFlags
+	Flags uint8
 }
 
-type ObjectFlags uint8
-
 const (
-	ObjectPalette ObjectFlags = 1 << (iota + 4)
+	ObjectPalette uint8 = 1 << (iota + 4)
 	FlipX
 	FlipY
 	ObjectPriority
@@ -32,7 +28,7 @@ func (v OAMView) At(n int) Object {
 		Y:     v[i+0],
 		X:     v[i+1],
 		Tile:  v[i+2],
-		Flags: ObjectFlags(v[i+3]),
+		Flags: v[i+3],
 	}
 }
 
@@ -59,7 +55,7 @@ func (oam *oamState) step(oamMem []byte, registers *registers, frame *frame) (do
 
 	if oam.processing { // odd cycle: object has been read, so process it
 		if len(oam.buffer) < 10 { // 10 objs max per scanline
-			doubleHeight := helpers.Mask(lcdc, OBJSizeMask)
+			doubleHeight := lcdc&OBJSizeMask != 0
 			if oam.obj.X != 0 {
 				yMin := oam.obj.Y
 				yMax := yMin + 8

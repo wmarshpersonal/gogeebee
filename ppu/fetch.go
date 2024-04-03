@@ -2,8 +2,6 @@ package ppu
 
 import (
 	"container/list"
-
-	"github.com/wmarshpersonal/gogeebee/internal/helpers"
 )
 
 // fetch represents the state of a PPU pixel fetch.
@@ -37,7 +35,7 @@ func (f *fetch) fetchBg(
 		f.step++
 	case fetchTile1:
 		tileMapAddr := tileMap0Address
-		if helpers.Mask(registers[LCDC], BGTileMapMask) {
+		if registers[LCDC]&BGTileMapMask != 0 {
 			tileMapAddr = tileMap1Address
 		}
 		var offset int
@@ -47,7 +45,7 @@ func (f *fetch) fetchBg(
 		f.step++
 	case fetchDataLo1:
 		var addrMode tileAddressingMode = base8800
-		if helpers.Mask(registers[LCDC], BGDataAreaMask) {
+		if registers[LCDC]&BGDataAreaMask != 0 {
 			addrMode = base8000
 		}
 		f.tileAddr = translateTileDataAddress(addrMode, f.tileNo)
@@ -79,7 +77,7 @@ func (f *fetch) fetchWindow(
 		f.step++
 	case fetchTile1:
 		tileMapAddr := tileMap0Address
-		if helpers.Mask(registers[LCDC], WindowTileMapMask) {
+		if registers[LCDC]&WindowTileMapMask != 0 {
 			tileMapAddr = tileMap1Address
 		}
 		var offset int
@@ -89,7 +87,7 @@ func (f *fetch) fetchWindow(
 		f.step++
 	case fetchDataLo1:
 		var addrMode tileAddressingMode = base8800
-		if helpers.Mask(registers[LCDC], BGDataAreaMask) {
+		if registers[LCDC]&BGDataAreaMask != 0 {
 			addrMode = base8000
 		}
 		f.tileAddr = translateTileDataAddress(addrMode, f.tileNo)
@@ -125,7 +123,7 @@ func (f *fetch) fetchObj(
 	case fetchDataLo1:
 		var addrMode tileAddressingMode = base8000
 		f.tileAddr = translateTileDataAddress(addrMode, f.tileNo)
-		if helpers.Mask(obj.Flags, FlipY) {
+		if obj.Flags&FlipY != 0 {
 			f.tileAddr += 14 - 2*int((registers[LY]+16-obj.Y)%8)
 		} else {
 			f.tileAddr += 2 * int((registers[LY]+16-obj.Y)%8)
@@ -136,7 +134,7 @@ func (f *fetch) fetchObj(
 		f.tileDataHi = vram[(f.tileAddr+1)&0x1FFF]
 		f.step++
 	case push:
-		flip := helpers.Mask(obj.Flags, FlipX)
+		flip := obj.Flags&FlipX != 0
 		e := fifo.Front()
 		for i := 0; i < 8; i++ {
 			if int(obj.X)+i >= 8 {
