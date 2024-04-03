@@ -64,7 +64,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 }
 
 func initGame(romData []byte) *Game {
-	mbc, err := cartridge.NewMBC1Mapper(romData)
+	mbc, err := cartridge.Load(romData)
 	if err != nil {
 		panic(err)
 	}
