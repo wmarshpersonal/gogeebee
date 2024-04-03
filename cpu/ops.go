@@ -153,6 +153,7 @@ func (op IDUOp) Do(s *State, addr AddrSelector) {
 			if r&(1<<i) != 0 {
 				s.PC = 0x0040 + 0x8*i
 				s.IF &= ^uint8(1 << i)
+				s.IF |= 0xE0
 				break
 			}
 		}
@@ -435,8 +436,6 @@ func (op MiscOp) Do(s *State, opcode uint8) {
 		s.IME = true
 	case Reset_IME:
 		s.IME = false
-	case Panic:
-		panic("MiscOp: Panic")
 	case Set_CB:
 		s.CB = true
 	case Halt:
@@ -445,6 +444,8 @@ func (op MiscOp) Do(s *State, opcode uint8) {
 		if Condition((opcode >> 3) & 0b11).Test(s.F) {
 			s.S++
 		}
+	case Panic:
+		panic("MiscOp: Panic")
 	default:
 		panic(op)
 	}

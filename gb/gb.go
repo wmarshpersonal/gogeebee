@@ -111,7 +111,7 @@ func (gb *GB) Read(address uint16) (value uint8) {
 	case address >= 0xFF80 && address <= 0xFFFE:
 		value = gb.HRAM[address&0x7F]
 	case address == 0xFFFF:
-		value = gb.CPU.IE & 0x1F
+		value = gb.CPU.IE
 	default:
 		slog.LogAttrs(context.Background(),
 			slog.LevelWarn,
@@ -142,7 +142,7 @@ func (gb *GB) ReadIO(port uint8) (value uint8) {
 	case 0x07: // TAC
 		return gb.Timer.Read(TAC)
 	case 0x0F: // IF
-		return gb.CPU.IF & 0x1F
+		return gb.CPU.IF
 	case 0x40: // LCDC
 		return gb.PPU.ReadRegister(ppu.LCDC)
 	case 0x41: // STAT
@@ -200,7 +200,7 @@ func (gb *GB) Write(address uint16, value uint8) {
 	case address >= 0xFF80 && address <= 0xFFFE:
 		gb.HRAM[address&0x7F] = value
 	case address == 0xFFFF:
-		gb.CPU.IE = value & 0x1F
+		gb.CPU.IE = (gb.CPU.IE & 0xE0) | (value & 0x1F)
 	default:
 		slog.LogAttrs(context.Background(),
 			slog.LevelWarn,
@@ -223,7 +223,7 @@ func (gb *GB) WriteIO(port, value uint8) {
 	case 0x07: // TAC
 		gb.Timer.Write(TAC, value)
 	case 0x0F: // IF
-		gb.CPU.IF = value & 0x1F
+		gb.CPU.IF = (gb.CPU.IF & 0xE0) | value&0x1F
 	case 0x40: // LCDC
 		gb.PPU.WriteRegister(ppu.LCDC, value)
 	case 0x41: // STAT
