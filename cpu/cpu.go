@@ -149,7 +149,8 @@ func FinishCycle(s *State, cycle Cycle, data uint8) {
 	}
 
 	// run fixed pipeline:
+	opcode := s.IR
 	cycle.Data.Do(s, data)
 	cycle.IDU.Do(s, cycle.Addr)
-	cycle.Misc.Do(s, s.IR)
+	cycle.Misc.Do(s, opcode)
 }
