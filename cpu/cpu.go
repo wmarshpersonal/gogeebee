@@ -127,7 +127,9 @@ func StartCycle(s *State, cycle Cycle) Cycle {
 		fetch(s, &cycle)
 	}
 
-	cycle.ALU.Do(s, s.IR)
+	if cycle.ALU != 0 {
+		cycle.ALU.Do(s, s.IR)
+	}
 
 	return cycle
 }
