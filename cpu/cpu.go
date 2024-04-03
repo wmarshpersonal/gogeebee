@@ -123,17 +123,8 @@ func StartCycle(s *State, cycle Cycle) Cycle {
 	s.S++ // increment state
 
 	if cycle.Fetch {
-		// add fetch to cycle
-		if cycle.Data != 0 || cycle.IDU != 0 {
-			panic("not enough free ops for fetch")
-		}
-		cycle.Data = ReadIR
-		cycle.IDU = IncSetPC
-
-		// reset state
-		s.S = 0
-		s.CB = false
-		s.Interrupting = false
+		// enrich cycle & cpu state with fetch
+		fetch(s, &cycle)
 	}
 
 	cycle.ALU.Do(s, s.IR)
@@ -141,15 +132,24 @@ func StartCycle(s *State, cycle Cycle) Cycle {
 	return cycle
 }
 
+func fetch(s *State, cycle *Cycle) {
+	// add fetch to cycle
+	cycle.Data = ReadIR
+	cycle.IDU = IncSetPC
+
+	// reset state
+	s.S = 0
+	s.CB = false
+	s.Interrupting = false
+}
+
 func FinishCycle(s *State, cycle Cycle, data uint8) {
 	if s.halted {
 		panic("halted")
 	}
 
-	opcode := s.IR
-
 	// run fixed pipeline:
 	cycle.Data.Do(s, data)
 	cycle.IDU.Do(s, cycle.Addr)
-	cycle.Misc.Do(s, opcode)
+	cycle.Misc.Do(s, s.IR)
 }
