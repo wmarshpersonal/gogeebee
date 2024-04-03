@@ -7,13 +7,14 @@ import (
 
 // State represents the internal CPU state.
 type State struct {
+	halted bool // cpu is in halt state
+
 	IR              uint8 // instruction register
 	Z, W, ALUResult uint8 // internal registers
 	S               int   // current cycle-step in instruction
 	IME             bool  // interrupts enabled
 	IE, IF          uint8 // interrupt enable, interrupt flag
 	Interrupting    bool  // interrupt logic is active
-	Halted          bool  // cpu is in halt state
 	CB              bool  // CB mode?
 
 	// register file

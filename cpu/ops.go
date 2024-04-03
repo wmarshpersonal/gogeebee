@@ -444,7 +444,7 @@ func (op MiscOp) Do(s *State, opcode uint8) {
 	case Set_CB:
 		s.CB = true
 	case Halt:
-		s.Halted = true
+		s.halted = true
 	case Cond:
 		if Condition((opcode >> 3) & 0b11).Test(s.F) {
 			s.S++

@@ -66,15 +66,11 @@ func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) {
 		}
 
 		// M-cycle-sensitive components
-		cycle := cpu.NextCycle(&gb.CPU)
-
-		// start servicing cpu...
-		if !gb.CPU.Halted { // ...if not halted
+		if !cpu.UpdateHalt(&gb.CPU) { // service cpu if not halted
+			cycle := cpu.FetchCycle(&gb.CPU)
 			cycle = cpu.StartCycle(&gb.CPU, cycle)
-		}
 
-		// finish servicing cpu...
-		if !gb.CPU.Halted { // ...if not halted
+			// finish servicing cpu after data fetch/write
 			var data uint8
 			if cycle.Data.RD() { // RD
 				data = gb.Read(cycle.Addr.Do(gb.CPU))

@@ -1,9 +1,5 @@
 package cpu
 
-import (
-	"fmt"
-)
-
 type Condition int
 
 const (
@@ -68,15 +64,29 @@ func init() {
 	})
 }
 
-func NextCycle(s *State) Cycle {
-	if s.Halted {
+var initCBCycle = Cycle{
+	Addr: AddrPC,
+	Data: ReadIR,
+	IDU:  IncSetPC,
+	Misc: Set_CB,
+}
+
+// UpdateHalt checks if the CPU should be halted, if it should unhalt,
+// and returns halted=true if we should continue running cycles.
+func UpdateHalt(s *State) (halted bool) {
+	if s.halted {
+		halted = true
 		if s.IF&s.IE != 0 {
-			s.Halted = false
-		} else {
-			return Cycle{}
+			s.halted = false
+			halted = false
 		}
 	}
 
+	return
+}
+
+// FetchCycle returns a copy of the next cycle to execute.
+func FetchCycle(s *State) (cycle Cycle) {
 	if s.S == 0 {
 		if s.IME && (s.IF&s.IE) != 0 {
 			s.IME = false
@@ -88,34 +98,25 @@ func NextCycle(s *State) Cycle {
 		return interruptOpcode[s.S]
 	}
 
-	var operation Opcode
-	opcode := s.IR
-
-	if s.S == 0 && opcode == 0xCB {
-		return Cycle{
-			Addr: AddrPC,
-			Data: ReadIR,
-			IDU:  IncSetPC,
-			Misc: Set_CB,
-		}
+	if s.S == 0 && s.IR == 0xCB {
+		return initCBCycle
 	}
 
-	var cycleIndex = s.S
 	if s.CB {
-		operation = operationsCB[opcode]
-		cycleIndex--
-	} else {
-		operation = operations[opcode]
-	}
-	if operation == nil {
-		panic(fmt.Sprintf("unimplemented opcode $%02X", opcode))
+		return operationsCB[s.IR][s.S-1]
 	}
 
-	return operation[cycleIndex]
+	op := operations[s.IR]
+
+	if op == nil {
+		panic("nil op")
+	}
+
+	return op[s.S]
 }
 
 func StartCycle(s *State, cycle Cycle) Cycle {
-	if s.Halted {
+	if s.halted {
 		panic("halted")
 	}
 
@@ -141,7 +142,7 @@ func StartCycle(s *State, cycle Cycle) Cycle {
 }
 
 func FinishCycle(s *State, cycle Cycle, data uint8) {
-	if s.Halted {
+	if s.halted {
 		panic("halted")
 	}
 
