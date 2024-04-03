@@ -109,7 +109,6 @@ func (op DataOp) WR(s State, opcode uint8) (bool, uint8) {
 // Do performs the data op, returning the new state.
 func (op DataOp) Do(s *State, data uint8) {
 	switch op {
-	case 0:
 	case ReadIR:
 		s.IR = data
 	case ReadZ:
@@ -134,7 +133,6 @@ const (
 // Do performs the IDU op, returning the new state.
 func (op IDUOp) Do(s *State, addr AddrSelector) {
 	switch op {
-	case 0:
 	case Inc, IncSetPC:
 		rr := addr.R16()
 		s.R16Set(rr, s.R16(rr)+1)
@@ -231,7 +229,6 @@ const (
 // Do performs the ALU op, returning the new state and operation result.
 func (op ALUOp) Do(s *State, opcode uint8) {
 	switch op {
-	case 0:
 	case LD_r_r:
 		s.R8Set(
 			rToR8((opcode>>3)&0b111),
@@ -421,7 +418,6 @@ const (
 // Do performs the MISC op, returning the new state.
 func (op MiscOp) Do(s *State, opcode uint8) {
 	switch op {
-	case 0:
 	case PC_Equals_WZ:
 		s.PC = mk16(s.W, s.Z)
 	case SP_Equals_WZ:
