@@ -68,6 +68,7 @@ const (
 	W_Equals_ALU                     // W ← ALU
 )
 
+// RD returns true if the operation requests a bus read.
 func (op DataOp) RD() bool {
 	switch op {
 	case ReadIR, ReadZ, ReadW:
@@ -77,6 +78,7 @@ func (op DataOp) RD() bool {
 	return false
 }
 
+// WR returns (true, value to write) if the operation requests a bus write.
 func (op DataOp) WR(s State, opcode uint8) (bool, uint8) {
 	switch op {
 	case WriteZ:
