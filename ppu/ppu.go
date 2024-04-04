@@ -90,7 +90,8 @@ func (p *PPU) StepT(vMem, oamMem []byte, buffer *PixelBuffer) {
 		if p.oam.step(oamMem, &p.registers, &p.frame) {
 			mode = Draw
 			p.draw = drawState{
-				x: -int(p.registers[SCX] % 8), // horizontal pixel chomp for scrolling,
+				objBuffer: p.draw.objBuffer[:0],       // reuse buffer
+				x:         -int(p.registers[SCX] % 8), // horizontal pixel chomp for scrolling,
 			}
 			p.draw.objBuffer = p.oam.buffer
 		}
