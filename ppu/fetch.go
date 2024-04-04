@@ -1,9 +1,5 @@
 package ppu
 
-import (
-	"container/list"
-)
-
 // fetch represents the state of a PPU pixel fetch.
 type fetch struct {
 	step                   fetchStep
@@ -29,7 +25,7 @@ const (
 func (f *fetch) fetchBg(
 	vram []byte,
 	registers registers,
-	fifo *list.List,
+	fifo *fifo[uint8],
 ) {
 	switch f.step {
 	case fetchDataLo0, fetchDataHi0:
@@ -60,9 +56,9 @@ func (f *fetch) fetchBg(
 		f.tileDataHi = vram[(f.tileAddr+1)&0x1FFF]
 		f.step++
 	case push:
-		if fifo.Len() == 0 {
+		if fifo.size == 0 {
 			for i := 0; i < 8; i++ {
-				fifo.PushBack(makeTilePixel(f.tileDataHi, f.tileDataLo, i, false))
+				fifo.push(makeTilePixel(f.tileDataHi, f.tileDataLo, i, false))
 			}
 			f.tileX++
 			f.step = 0
@@ -73,7 +69,7 @@ func (f *fetch) fetchBg(
 func (f *fetch) fetchWindow(
 	vram []byte,
 	registers registers,
-	fifo *list.List,
+	fifo *fifo[uint8],
 	windowLines int,
 ) {
 	switch f.step {
@@ -102,9 +98,9 @@ func (f *fetch) fetchWindow(
 		f.tileDataHi = vram[(f.tileAddr+1)&0x1FFF]
 		f.step++
 	case push:
-		if fifo.Len() == 0 {
+		if fifo.size == 0 {
 			for i := 0; i < 8; i++ {
-				fifo.PushBack(makeTilePixel(f.tileDataHi, f.tileDataLo, i, false))
+				fifo.push(makeTilePixel(f.tileDataHi, f.tileDataLo, i, false))
 			}
 			f.tileX++
 			f.step = 0
@@ -115,7 +111,7 @@ func (f *fetch) fetchWindow(
 func (f *fetch) fetchObj(
 	vram []byte,
 	registers registers,
-	fifo *list.List,
+	fifo *fifo[objPixel],
 	obj Object,
 ) {
 	switch f.step {
@@ -139,17 +135,15 @@ func (f *fetch) fetchObj(
 		f.step++
 	case push:
 		flip := obj.Flags&FlipX != 0
-		e := fifo.Front()
 		for i := 0; i < 8; i++ {
 			if int(obj.X)+i >= 8 {
 				objP := objPixel{makeTilePixel(f.tileDataHi, f.tileDataLo, i, flip), uint8(obj.Flags)}
-				if e != nil {
-					if e.Value.(objPixel).value == 0 && objP.value != 0 {
-						e.Value = objP
+				if existing, ok := fifo.at(uint(i)); ok {
+					if existing.value == 0 && objP.value != 0 {
+						fifo.replace(uint(i), objP)
 					}
-					e = e.Next()
 				} else {
-					fifo.PushBack(objP)
+					fifo.push(objP)
 				}
 			}
 		}

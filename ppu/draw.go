@@ -1,12 +1,11 @@
 package ppu
 
-import "container/list"
-
 type drawState struct {
 	dotCount              int
 	x                     int
 	objBuffer             []Object
-	bgFifo, objFifo       list.List
+	bgFifo                fifo[uint8]
+	objFifo               fifo[objPixel]
 	bgFetcher, objFetcher fetch
 	wxTriggered           bool
 	windowing             bool
@@ -68,7 +67,7 @@ func (d *drawState) getPixel(
 			if enabled {
 				d.windowing = true
 				d.bgFetcher = fetch{}
-				d.bgFifo.Init()
+				d.bgFifo.clear()
 			}
 		}
 		pixel, ok = d.mixPixels(registers)
@@ -78,10 +77,7 @@ func (d *drawState) getPixel(
 }
 
 func (d *drawState) mixPixels(registers *registers) (pixel uint8, ok bool) {
-	if e := d.bgFifo.Front(); e != nil {
-		pixel, ok = e.Value.(uint8), true
-		d.bgFifo.Remove(e)
-
+	if pixel, ok = d.bgFifo.tryPop(); ok {
 		if d.x < 0 {
 			return
 		}
@@ -92,16 +88,7 @@ func (d *drawState) mixPixels(registers *registers) (pixel uint8, ok bool) {
 			palette = 0
 		}
 
-		var (
-			objP  objPixel
-			objOk bool
-		)
-		if e := d.objFifo.Front(); e != nil {
-			objP, objOk = e.Value.(objPixel), true
-			d.objFifo.Remove(e)
-		}
-
-		if objOk && objP.value != 0 {
+		if objP, objOk := d.objFifo.tryPop(); objOk && objP.value != 0 {
 			if objP.flags&uint8(ObjectPriority) == 0 || pixel == 0 {
 				pixel = objP.value
 				palette = registers[OBP0]
