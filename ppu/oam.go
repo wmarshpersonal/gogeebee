@@ -64,10 +64,14 @@ func (oam *oamState) step(oamMem []byte, registers *registers, frame *frame) (do
 				}
 				if ly+16 >= yMin && ly+16 < yMax {
 					if doubleHeight {
+						tileTop, tileBottom := oam.obj.Tile&0xFE, oam.obj.Tile|0x01
+						if oam.obj.Flags&FlipY != 0 {
+							tileTop, tileBottom = tileBottom, tileTop
+						}
 						if ly+16-oam.obj.Y < 8 {
-							oam.obj.Tile &= 0xFE
+							oam.obj.Tile = tileTop
 						} else {
-							oam.obj.Tile |= 1
+							oam.obj.Tile = tileBottom
 						}
 					}
 					oam.buffer = append(oam.buffer, oam.obj)

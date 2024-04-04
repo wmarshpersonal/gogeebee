@@ -134,10 +134,10 @@ func (f *fetch) fetchObj(
 		f.tileDataHi = vram[(f.tileAddr+1)&0x1FFF]
 		f.step++
 	case push:
-		flip := obj.Flags&FlipX != 0
+		flipX := obj.Flags&FlipX != 0
 		for i := 0; i < 8; i++ {
 			if int(obj.X)+i >= 8 {
-				objP := objPixel{makeTilePixel(f.tileDataHi, f.tileDataLo, i, flip), uint8(obj.Flags)}
+				objP := objPixel{makeTilePixel(f.tileDataHi, f.tileDataLo, i, flipX), uint8(obj.Flags)}
 				if existing, ok := fifo.at(uint(i)); ok {
 					if existing.value == 0 && objP.value != 0 {
 						fifo.replace(uint(i), objP)
