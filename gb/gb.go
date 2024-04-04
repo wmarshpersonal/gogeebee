@@ -24,7 +24,7 @@ type GB struct {
 	OAM   [ppu.OAMSize]byte
 	HRAM  [0x7F]byte
 	// IO
-	JOYP uint8
+	JOYP Joy1
 
 	dirs JoypadDirections
 	btns JoypadButtons
@@ -126,13 +126,7 @@ func (gb *GB) Read(address uint16) (value uint8) {
 func (gb *GB) ReadIO(port uint8) (value uint8) {
 	switch port {
 	case 0x00: // P1/JOYP
-		value = 0xFF
-		if gb.JOYP&0x10 == 0 {
-			value &= ^uint8(gb.dirs)
-		}
-		if gb.JOYP&0x20 == 0 {
-			value &= ^uint8(gb.btns)
-		}
+		value = gb.JOYP.Read(gb.btns, gb.dirs)
 	case 0x04: // DIV
 		return gb.Timer.Read(DIV)
 	case 0x05: // TIMA
@@ -213,7 +207,7 @@ func (gb *GB) Write(address uint16, value uint8) {
 func (gb *GB) WriteIO(port, value uint8) {
 	switch port {
 	case 0x00: // P1/JOYP
-		gb.JOYP = (gb.JOYP & 0xCF) | (value & 0x30)
+		gb.JOYP.Write(value)
 	case 0x04: // DIV
 		gb.Timer.Write(DIV, value)
 	case 0x05: // TIMA
