@@ -58,20 +58,5 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	// sprite debug
-	// for i := 0; i < 40; i++ {
-	// 	obj := ppu.OAMView(g.oam[:]).At(i)
-	// 	y, x := obj.Y, obj.X
-	// 	if x != 0 {
-	// 		x -= 8
-	// 		y -= 16
-	// 		for yy := 0; yy < 8; yy++ {
-	// 			for xx := 0; xx < 8; xx++ {
-	// 				screen.Set(int(x)+xx, int(y)+yy, palette[3])
-	// 			}
-	// 		}
-	// 	}
-	// }
-
 	// ebitenutil.DebugPrint(screen, fmt.Sprintf("gogeebee %d", g.frame))
 }
