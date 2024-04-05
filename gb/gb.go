@@ -50,12 +50,20 @@ func NewDMG(mbc cartridge.MBC) *GB {
 // this function returns the number of T-cycles actually executed.
 // Usually it's 70224 T-cycles per frame.
 func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) (tCycles int) {
-	gb.dirs, gb.btns = dirs, btns
-
 	var (
 		cyclesAtStart = gb.cycles
 		clearFrame    bool
 	)
+
+	// JOY interrupt?
+	prevJoy := gb.JOYP.Read(gb.btns, gb.dirs)
+	curJoy := gb.JOYP.Read(btns, dirs)
+	for i := 0; i < 4; i++ {
+		if (prevJoy&(1<<i)) != 0 && (curJoy&(1<<i)) == 0 {
+			gb.CPU.IF |= 16
+		}
+	}
+	gb.btns, gb.dirs = btns, dirs
 
 	// on PPU re-activation, spin the system until the PPU is back in sync.
 	for gb.PPU.Enabled() && !gb.PPU.AtStartOfVBlank() {
