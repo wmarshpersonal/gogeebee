@@ -127,5 +127,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 
+	// debugDrawWindow(screen, &g.gb.PPU)
 	// ebitenutil.DebugPrint(screen, fmt.Sprintf("gogeebee %d", g.frame))
+}
+
+func debugDrawWindow(screen *ebiten.Image, p *ppu.PPU) {
+	if p.ReadRegister(ppu.LCDC)&ppu.WindowEnabledMask != 0 {
+		for y := p.ReadRegister(ppu.WY); y < ppu.ScreenHeight; y++ {
+			for x := p.ReadRegister(ppu.WX) - 7; x < ppu.ScreenWidth; x++ {
+				screen.Set(int(x), int(y), color.RGBA{0xFF, 0, 0, 0x88})
+			}
+		}
+	}
 }
