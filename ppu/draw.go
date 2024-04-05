@@ -18,7 +18,7 @@ func (d *drawState) step(vMem []byte, scanline scanline, registers *registers, f
 		return
 	}
 
-	if d.x == int(registers[WX])-7 { // trigger wx
+	if d.x == int(registers[WX])-7 && d.x >= 0 { // trigger wx
 		d.wxTriggered = true
 	}
 

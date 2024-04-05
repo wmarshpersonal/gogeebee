@@ -7,7 +7,6 @@ type fetch struct {
 	tileNo                 int
 	tileAddr               int
 	tileDataLo, tileDataHi uint8
-	scx, scy               uint8
 }
 
 type fetchStep int
@@ -31,7 +30,6 @@ func (f *fetch) fetchBg(
 	case fetchDataLo0, fetchDataHi0:
 		f.step++
 	case fetchTile0:
-		f.scx, f.scy = registers[SCX], registers[SCY]
 		f.step++
 	case fetchTile1:
 		tileMapAddr := tileMap0Address
@@ -39,8 +37,8 @@ func (f *fetch) fetchBg(
 			tileMapAddr = tileMap1Address
 		}
 		var offset int
-		offset += (f.tileX + int(f.scx/8)) & 0x1F
-		offset += int(32 * (((int(registers[LY]) + int(f.scy)) & 0xFF) / 8))
+		offset += (f.tileX + int(registers[SCX]/8)) & 0x1F
+		offset += int(32 * (((int(registers[LY]) + int(registers[SCY])) & 0xFF) / 8))
 		f.tileNo = int(vram[(tileMapAddr+offset&0x3FF)&0x1FFF])
 		f.step++
 	case fetchDataLo1:
@@ -49,7 +47,7 @@ func (f *fetch) fetchBg(
 			addrMode = base8000
 		}
 		f.tileAddr = translateTileDataAddress(addrMode, f.tileNo)
-		f.tileAddr += 2 * int((registers[LY]+f.scy)%8)
+		f.tileAddr += 2 * int((registers[LY]+registers[SCY])%8)
 		f.tileDataLo = vram[f.tileAddr&0x1FFF]
 		f.step++
 	case fetchDataHi1:

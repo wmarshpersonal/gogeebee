@@ -53,7 +53,8 @@ func (oam *oamState) step(oamMem []byte, registers *registers, frame *frame) (do
 		oam.checkedLY = true
 
 		// update wy trigger
-		if ly == wy {
+		canEnableWindow := registers[LCDC]&uint8(WindowEnabledMask) != 0 && registers[LCDC]&uint8(BGEnabledMask) != 0
+		if canEnableWindow && ly == wy {
 			frame.wyTriggered = true
 		}
 	}
