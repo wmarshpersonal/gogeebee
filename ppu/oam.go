@@ -33,7 +33,8 @@ func (v OAMView) At(n int) Object {
 }
 
 type oamState struct {
-	checkedWY  bool
+	dotCount   int
+	checkedLY  bool
 	buffer     []Object
 	objsRead   int
 	obj        Object
@@ -47,11 +48,15 @@ func (oam *oamState) step(oamMem []byte, registers *registers, frame *frame) (do
 		wy   = registers[WY]
 	)
 
-	// update wy trigger
-	if !oam.checkedWY && ly == wy {
-		frame.wyTriggered = true
+	// ly-based checks happen if it's the first cycle
+	if !oam.checkedLY {
+		oam.checkedLY = true
+
+		// update wy trigger
+		if ly == wy {
+			frame.wyTriggered = true
+		}
 	}
-	oam.checkedWY = true
 
 	if oam.processing { // odd cycle: object has been read, so process it
 		if len(oam.buffer) < 10 { // 10 objs max per scanline
@@ -92,6 +97,8 @@ func (oam *oamState) step(oamMem []byte, registers *registers, frame *frame) (do
 	}
 
 	oam.processing = !oam.processing
+
+	oam.dotCount++
 
 	return
 }

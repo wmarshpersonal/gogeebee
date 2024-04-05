@@ -30,7 +30,7 @@ const (
 
 const (
 	PPUModeMask     uint8 = 0b11
-	CoincidenceMask       = 1 << (iota + 1)
+	CoincidenceMask uint8 = 1 << (iota + 1)
 	Mode0IntEnableMask
 	Mode1IntEnableMask
 	Mode2IntEnableMask

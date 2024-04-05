@@ -58,7 +58,7 @@ func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) (tCycles int) 
 	)
 
 	// on PPU re-activation, spin the system until the PPU is back in sync.
-	for gb.PPU.Enabled() && !gb.PPU.AtStartOfBlank() {
+	for gb.PPU.Enabled() && !gb.PPU.AtStartOfVBlank() {
 		clearFrame = true // LCD is blank during catch-up frames
 		gb.stepHardware()
 	}
@@ -85,13 +85,11 @@ func (gb *GB) stepHardware() {
 	gb.PPU.StepT(gb.VRAM[:], gb.OAM[:], &gb.LCD)
 
 	// ppu interrupts
-	if gb.PPU.Enabled() {
-		if gb.PPU.VBLANKLine && !prevVblankLine {
-			gb.CPU.IF |= 1
-		}
-		if gb.PPU.STATLine && !prevStatLine {
-			gb.CPU.IF |= 2
-		}
+	if gb.PPU.VBLANKLine && !prevVblankLine {
+		gb.CPU.IF |= 1
+	}
+	if gb.PPU.STATLine && !prevStatLine {
+		gb.CPU.IF |= 2
 	}
 
 	// timer

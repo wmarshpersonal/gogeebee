@@ -71,6 +71,11 @@ func (p *PPU) WriteRegister(register Register, value uint8) {
 		p.DMA = DMAUnit{Mode: DMAStartup, Address: (uint16(value) << 8)}
 		p.registers[DMA] = value
 	case LY: // read-only
+	case LYC:
+		p.registers[LYC] = value
+		if p.Enabled() && p.registers[LY] == p.registers[LYC] {
+			p.registers[STAT] |= CoincidenceMask
+		}
 	case STAT: // lower 3-bits are read-only
 		p.registers[STAT] = (value & ^uint8(7)) | (p.registers[STAT] & 7)
 	default:
@@ -78,7 +83,7 @@ func (p *PPU) WriteRegister(register Register, value uint8) {
 	}
 }
 
-func (p *PPU) AtStartOfBlank() bool {
+func (p *PPU) AtStartOfVBlank() bool {
 	return p.Mode() == VBlank && p.vblank.dotCount == 0
 }
 
@@ -151,24 +156,33 @@ func (p *PPU) StepT(vMem, oamMem []byte, buffer *PixelBuffer) {
 	prevMode := p.Mode()
 	p.setMode(mode)
 
-	// update STAT coincidence
+	// coincidence flag
+	p.registers[STAT] &= ^CoincidenceMask
 	coincidence := p.registers[LY] == p.registers[LYC]
 	if coincidence {
 		p.registers[STAT] |= CoincidenceMask
 	}
 
 	// updates interrupt lines
-	p.VBLANKLine = mode == VBlank && prevMode != mode                   // vblank
-	if p.registers[STAT]&CoincidenceIntEnableMask != 0 && coincidence { // ly==lyc
+	p.VBLANKLine = mode == VBlank && prevMode != VBlank // vblank
+
+	if (mode == OAMScan && p.oam.dotCount == 4) || (mode == VBlank && p.vblank.dotCount == 4) {
+		if coincidence {
+			if p.registers[STAT]&CoincidenceIntEnableMask != 0 && coincidence { // ly==lyc
+				p.STATLine = true
+			}
+		}
+	}
+
+	if p.registers[STAT]&Mode0IntEnableMask != 0 && mode == 0 { // mode0
 		p.STATLine = true
 	}
-	if p.registers[STAT]&Mode0IntEnableMask != 0 && mode == 0 { // mode0
-		p.STATLine = prevMode != mode
-	}
+
 	if p.registers[STAT]&Mode1IntEnableMask != 0 && mode == 1 { // mode1
-		p.STATLine = prevMode != mode
+		p.STATLine = true
 	}
+
 	if p.registers[STAT]&Mode2IntEnableMask != 0 && mode == 2 { // mode2
-		p.STATLine = prevMode != mode
+		p.STATLine = true
 	}
 }
