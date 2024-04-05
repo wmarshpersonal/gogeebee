@@ -81,13 +81,13 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 	return width, height
 }
 
-func initGame(romData []byte) *Game {
+func initGame(romData []byte) (*Game, error) {
 	mbc, err := cartridge.Load(romData)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	return &Game{
 		gb: *gb.NewDMG(mbc),
-	}
+	}, nil
 }
