@@ -151,6 +151,16 @@
       "args": [
         "/Users/wayne/ROMs/Game Boy/Alfred Chicken (USA).gb"
       ]
+    },
+    {
+      "name": "Donkey Kong",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/No-Intro - Nintendo - Game Boy (2017-07-02)/Donkey Kong (World) (Rev A) (SGB Enhanced).zip"
+      ]
     }
   ],
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"image/color"
 	"io"
-	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -39,22 +38,20 @@ func main() {
 		os.Exit(1)
 	} else {
 		if err := ebiten.RunGame(game); err != nil {
-			log.Fatal(err)
+			slog.Error("failed running game", "err", err)
+			os.Exit(1)
 		}
 	}
 }
 
 func openROMFile(path string) ([]byte, error) {
-	if fi, err := os.Stat(path); err != nil {
-		return nil, err
-	} else {
-		if _, zipErr := zip.FileInfoHeader(fi); zipErr == nil {
-			slog.Info("looks like a zip file", "path", path)
-			if romData, err := openZippedROM(path); err != nil {
-				slog.Info("failed opening zipped rom", "err", err)
-			} else {
-				return romData, nil
-			}
+	if zr, err := zip.OpenReader(path); err == nil {
+		slog.Info("looks like a zip file", "path", path)
+		defer zr.Close()
+		if romData, err := openZippedROM(zr); err != nil {
+			return nil, err
+		} else {
+			return romData, nil
 		}
 	}
 
@@ -62,15 +59,7 @@ func openROMFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-func openZippedROM(path string) ([]byte, error) {
-	var z *zip.ReadCloser
-	var err error
-	if z, err = zip.OpenReader(path); err != nil {
-		return nil, err
-	}
-
-	defer z.Close()
-
+func openZippedROM(z *zip.ReadCloser) ([]byte, error) {
 	var candidates []*zip.File
 	for _, f := range z.File {
 		if f.FileInfo().Size() >= 32*1024 {
@@ -106,6 +95,7 @@ func openZippedROM(path string) ([]byte, error) {
 	}
 
 	var f io.ReadCloser
+	var err error
 	if f, err = candidates[0].Open(); err != nil {
 		return nil, err
 	}
