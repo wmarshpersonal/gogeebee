@@ -78,12 +78,36 @@ func (p *PPU) WriteRegister(register Register, value uint8) {
 	}
 }
 
+func (p *PPU) AtStartOfBlank() bool {
+	return p.Mode() == VBlank && p.vblank.dotCount == 0
+}
+
 func (p *PPU) Mode() Mode {
 	return Mode(p.registers[STAT] & uint8(PPUModeMask))
 }
 
+func (p *PPU) setMode(mode Mode) {
+	p.registers[STAT] = 0x80 | (p.registers[STAT] & ^uint8(7))
+	p.registers[STAT] |= uint8(mode)
+}
+
+func (p *PPU) Enabled() bool {
+	return p.registers[LCDC]&LCDEnabledMask != 0
+}
+
 // StepT runs one t-cycle of the PPU.
 func (p *PPU) StepT(vMem, oamMem []byte, buffer *PixelBuffer) {
+	p.STATLine = false
+	p.VBLANKLine = false
+
+	// not enabled?
+	if p.registers[LCDC]&LCDEnabledMask == 0 {
+		p.registers[LY] = 0
+		p.setMode(0)
+		p.hblank = hblankState{dotsLeft: 0}
+		return
+	}
+
 	mode := p.Mode()
 	switch mode {
 	case OAMScan:
@@ -125,8 +149,7 @@ func (p *PPU) StepT(vMem, oamMem []byte, buffer *PixelBuffer) {
 
 	// update STAT mode
 	prevMode := p.Mode()
-	p.registers[STAT] = 0x80 | (p.registers[STAT] & ^uint8(7))
-	p.registers[STAT] |= uint8(mode)
+	p.setMode(mode)
 
 	// update STAT coincidence
 	coincidence := p.registers[LY] == p.registers[LYC]
@@ -135,8 +158,7 @@ func (p *PPU) StepT(vMem, oamMem []byte, buffer *PixelBuffer) {
 	}
 
 	// updates interrupt lines
-	p.VBLANKLine = mode == VBlank && prevMode != mode // vblank
-	p.STATLine = false
+	p.VBLANKLine = mode == VBlank && prevMode != mode                   // vblank
 	if p.registers[STAT]&CoincidenceIntEnableMask != 0 && coincidence { // ly==lyc
 		p.STATLine = true
 	}

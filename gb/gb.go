@@ -10,7 +10,11 @@ import (
 	"github.com/wmarshpersonal/gogeebee/ppu"
 )
 
+const TCyclesPerRegularFrame = 70224
+
 type GB struct {
+	cycles uint64
+
 	// Components
 	CPU   cpu.State
 	Timer Timer
@@ -42,30 +46,54 @@ func NewDMG(mbc cartridge.MBC) *GB {
 }
 
 // RunFrame executes the Game Boy for the length of one frame.
-func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) {
+// As PPU synchronization can cause the Game Boy's refresh rate to vary,
+// this function returns the number of T-cycles actually executed.
+// Usually it's 70224 T-cycles per frame.
+func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) (tCycles int) {
 	gb.dirs, gb.btns = dirs, btns
 
-	for range 17556 {
-		// T-cycle-sensitive components
-		for range 4 {
-			// ppu
-			prevVblankLine := gb.PPU.VBLANKLine
-			prevStatLine := gb.PPU.STATLine
-			gb.PPU.StepT(gb.VRAM[:], gb.OAM[:], &gb.LCD)
-			if gb.PPU.VBLANKLine && !prevVblankLine {
-				gb.CPU.IF |= 1
-			}
-			if gb.PPU.STATLine && !prevStatLine {
-				gb.CPU.IF |= 2
-			}
-			// timer
-			gb.Timer.StepT()
-			if gb.Timer.IR {
-				gb.CPU.IF |= 4
-			}
-		}
+	var (
+		cyclesAtStart     = gb.cycles
+		lcdEnabledAtStart = gb.PPU.Enabled()
+	)
 
-		// M-cycle-sensitive components
+	// on PPU re-activation, spin the system until the PPU is back in sync.
+	for lcdEnabledAtStart && !gb.PPU.AtStartOfBlank() {
+		gb.stepHardware()
+	}
+
+	for range TCyclesPerRegularFrame {
+		gb.stepHardware()
+	}
+
+	return int(gb.cycles - cyclesAtStart)
+}
+
+// run for one t-cycle
+func (gb *GB) stepHardware() {
+	// ppu
+	prevVblankLine := gb.PPU.VBLANKLine
+	prevStatLine := gb.PPU.STATLine
+	gb.PPU.StepT(gb.VRAM[:], gb.OAM[:], &gb.LCD)
+
+	// ppu interrupts
+	if gb.PPU.Enabled() {
+		if gb.PPU.VBLANKLine && !prevVblankLine {
+			gb.CPU.IF |= 1
+		}
+		if gb.PPU.STATLine && !prevStatLine {
+			gb.CPU.IF |= 2
+		}
+	}
+
+	// timer
+	gb.Timer.StepT()
+	if gb.Timer.IR {
+		gb.CPU.IF |= 4
+	}
+
+	// M-cycled components (CPU, DMA)
+	if gb.cycles%4 == 0 {
 		if !cpu.UpdateHalt(&gb.CPU) { // service cpu if not halted
 			cycle := cpu.FetchCycle(&gb.CPU)
 			cycle = cpu.StartCycle(&gb.CPU, cycle)
@@ -87,6 +115,8 @@ func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) {
 		}
 		gb.PPU.DMA.StepM(gb.OAM[:], dmaData)
 	}
+
+	gb.cycles++
 }
 
 // Read reads a byte from the system bus.
