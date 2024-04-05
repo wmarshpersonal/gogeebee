@@ -66,21 +66,22 @@ func (d *drawState) getPixel(
 		if bgOk {
 			ok = true
 
-			objP, objOk := d.objFifo.tryPop()
-			if !objOk {
-				objP.value = 0
-			}
-
-			pixel = d.mixPixels(registers, bgPixel, objP)
-
 			// activate window?
 			if !d.windowing && frame.wyTriggered && d.wxTriggered {
+				ok = false
 				enabled := registers[LCDC]&uint8(WindowEnabledMask) != 0 && registers[LCDC]&uint8(BGEnabledMask) != 0
 				if enabled {
 					d.windowing = true
 					d.bgFetcher = fetch{}
 					d.bgFifo.clear()
 				}
+			} else {
+				objP, objOk := d.objFifo.tryPop()
+				if !objOk {
+					objP.value = 0
+				}
+
+				pixel = d.mixPixels(registers, bgPixel, objP)
 			}
 		}
 	}

@@ -53,17 +53,25 @@ func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) (tCycles int) 
 	gb.dirs, gb.btns = dirs, btns
 
 	var (
-		cyclesAtStart     = gb.cycles
-		lcdEnabledAtStart = gb.PPU.Enabled()
+		cyclesAtStart = gb.cycles
+		clearFrame    bool
 	)
 
 	// on PPU re-activation, spin the system until the PPU is back in sync.
-	for lcdEnabledAtStart && !gb.PPU.AtStartOfBlank() {
+	for gb.PPU.Enabled() && !gb.PPU.AtStartOfBlank() {
+		clearFrame = true // LCD is blank during catch-up frames
 		gb.stepHardware()
 	}
 
 	for range TCyclesPerRegularFrame {
 		gb.stepHardware()
+		if !gb.PPU.Enabled() {
+			clearFrame = true
+		}
+	}
+
+	if clearFrame {
+		clear(gb.LCD[:])
 	}
 
 	return int(gb.cycles - cyclesAtStart)

@@ -123,6 +123,9 @@ func (p *PPU) StepT(vMem, oamMem []byte, buffer *PixelBuffer) {
 		if p.draw.step(vMem, buffer.scanline(int(p.registers[LY])), &p.registers, &p.frame) {
 			mode = HBlank
 			p.hblank = hblankState{dotsLeft: lineLength - oamModeLength - p.draw.dotCount}
+			if p.draw.windowing {
+				p.frame.windowLines++
+			}
 		}
 	case HBlank:
 		if p.hblank.step(&p.registers) { // enter next line/vblank
@@ -132,9 +135,6 @@ func (p *PPU) StepT(vMem, oamMem []byte, buffer *PixelBuffer) {
 			} else { // entering oam scan of next line
 				mode = OAMScan
 				p.oam = oamState{}
-				if p.frame.wyTriggered {
-					p.frame.windowLines++
-				}
 			}
 		}
 	case VBlank:
