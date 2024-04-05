@@ -51,6 +51,7 @@ func (d *drawState) getPixel(
 		d.objFetcher.fetchObj(vram, *registers, &d.objFifo, obj)
 		if d.objFetcher.step == 0 {
 			d.objBuffer = d.objBuffer[1:]
+			fetchingObj = shouldFetchObj(registers[LCDC], d.objBuffer, d.x)
 		}
 	} else { // don't fetch obj
 		d.objFetcher.step = 0
@@ -64,20 +65,19 @@ func (d *drawState) getPixel(
 	if !fetchingObj {
 		bgPixel, bgOk := d.bgFifo.tryPop()
 		if bgOk {
-			ok = true
-			objP, objOk := d.objFifo.tryPop()
-			if !objOk {
-				objP.value = 0
-			}
-			pixel = d.mixPixels(registers, bgPixel, objP)
-
 			// activate window?
 			canEnableWindow := registers[LCDC]&uint8(WindowEnabledMask) != 0 && registers[LCDC]&uint8(BGEnabledMask) != 0
 			if !d.windowing && canEnableWindow && frame.wyTriggered && d.wxTriggered {
-				ok = false
 				d.windowing = true
 				d.bgFetcher = fetch{}
 				d.bgFifo.clear()
+			} else {
+				ok = true
+				objP, objOk := d.objFifo.tryPop()
+				if !objOk {
+					objP.value = 0
+				}
+				pixel = d.mixPixels(registers, bgPixel, objP)
 			}
 		}
 	}
