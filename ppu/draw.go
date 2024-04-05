@@ -18,7 +18,7 @@ func (d *drawState) step(vMem []byte, scanline scanline, registers *registers, f
 		return
 	}
 
-	if d.x >= int(registers[WX])-7 { // trigger wx
+	if d.x == int(registers[WX])-7 { // trigger wx
 		d.wxTriggered = true
 	}
 
@@ -44,7 +44,8 @@ func (d *drawState) getPixel(
 	registers *registers,
 	frame *frame,
 ) (pixel uint8, ok bool) {
-	if shouldFetchObj(registers[LCDC], d.objBuffer, d.x) { // fetch obj
+	fetchingObj := shouldFetchObj(registers[LCDC], d.objBuffer, d.x)
+	if fetchingObj { // fetch obj
 		d.bgFetcher.step = 0
 		obj := d.objBuffer[0]
 		d.objFetcher.fetchObj(vram, *registers, &d.objFifo, obj)
@@ -60,46 +61,52 @@ func (d *drawState) getPixel(
 		}
 	}
 
-	if !shouldFetchObj(registers[LCDC], d.objBuffer, d.x) {
-		// activate window?
-		if !d.windowing && frame.wyTriggered && d.wxTriggered {
-			enabled := registers[LCDC]&uint8(WindowEnabledMask) != 0 && registers[LCDC]&uint8(BGEnabledMask) != 0
-			if enabled {
-				d.windowing = true
-				d.bgFetcher = fetch{}
-				d.bgFifo.clear()
+	if !fetchingObj {
+		bgPixel, bgOk := d.bgFifo.tryPop()
+		if bgOk {
+			ok = true
+
+			objP, objOk := d.objFifo.tryPop()
+			if !objOk {
+				objP.value = 0
+			}
+
+			pixel = d.mixPixels(registers, bgPixel, objP)
+
+			// activate window?
+			if !d.windowing && frame.wyTriggered && d.wxTriggered {
+				enabled := registers[LCDC]&uint8(WindowEnabledMask) != 0 && registers[LCDC]&uint8(BGEnabledMask) != 0
+				if enabled {
+					d.windowing = true
+					d.bgFetcher = fetch{}
+					d.bgFifo.clear()
+				}
 			}
 		}
-		pixel, ok = d.mixPixels(registers)
 	}
 
 	return
 }
 
-func (d *drawState) mixPixels(registers *registers) (pixel uint8, ok bool) {
-	if pixel, ok = d.bgFifo.tryPop(); ok {
-		if d.x < 0 {
-			return
-		}
+func (d *drawState) mixPixels(registers *registers, bgPixel uint8, objP objPixel) uint8 {
+	pixel := bgPixel
 
-		var palette uint8 = registers[BGP]
-		if registers[LCDC]&uint8(BGEnabledMask) == 0 {
-			pixel = 0
-			palette = 0
-		}
-
-		if objP, objOk := d.objFifo.tryPop(); objOk && objP.value != 0 {
-			if objP.flags&uint8(ObjectPriority) == 0 || pixel == 0 {
-				pixel = objP.value
-				palette = registers[OBP0]
-				if objP.flags&uint8(ObjectPalette) != 0 {
-					palette = registers[OBP1]
-				}
-			}
-		}
-
-		pixel = (palette >> (pixel << 1)) & 3
+	var palette uint8 = registers[BGP]
+	if registers[LCDC]&uint8(BGEnabledMask) == 0 {
+		pixel = 0
 	}
 
-	return
+	if objP.value != 0 {
+		if objP.flags&uint8(ObjectPriority) == 0 || pixel == 0 {
+			pixel = objP.value
+			palette = registers[OBP0]
+			if objP.flags&uint8(ObjectPalette) != 0 {
+				palette = registers[OBP1]
+			}
+		}
+	}
+
+	pixel = (palette >> (pixel << 1)) & 3
+
+	return pixel
 }

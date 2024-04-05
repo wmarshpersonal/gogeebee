@@ -16,6 +16,8 @@ func BenchmarkPPU(b *testing.B) {
 		ppu    *PPU         = new(PPU)
 	)
 
+	ppu.registers[LCDC] = 0xFF
+
 	b.Logf("seed: %d", seed)
 	r.Read(vmem)
 	r.Read(oamMem)
@@ -66,6 +68,6 @@ func BenchmarkDraw_mixPixels(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		draw.bgFifo.push(uint8(i % 4))
 		draw.objFifo.push(objPixel{})
-		draw.mixPixels(registers)
+		draw.mixPixels(registers, 0, objPixel{})
 	}
 }

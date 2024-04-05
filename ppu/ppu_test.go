@@ -26,6 +26,7 @@ func (suite *PPUTestSuite) SetupSubTest() {
 	r.Read(suite.oam[:])
 
 	// make sure the PPU is in the "first dot in frame" state
+	suite.ppu.registers[LCDC] = 0xFF
 	suite.ppu.registers[LY] = 0
 	suite.ppu.registers[STAT] &= 0b11111000
 	suite.ppu.registers[STAT] |= 0x80 | uint8(OAMScan)
