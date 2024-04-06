@@ -38,13 +38,3 @@ const (
 )
 
 type registers [12]uint8
-
-func (r *registers) Write(register Register, value uint8) {
-	switch register {
-	case LY:
-	case STAT:
-		r[STAT] = (value & ^uint8(7)) | (r[STAT] & 7)
-	default:
-		r[register] = value
-	}
-}
