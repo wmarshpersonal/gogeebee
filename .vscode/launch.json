@@ -3,150 +3,11 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "cpu_instrs",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/cpu_instrs/cpu_instrs.gb"
-      ]
-    },
-    {
-      "name": "cpu_instrs:02-interrupts.gb",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/cpu_instrs/individual/02-interrupts.gb"
-      ]
-    },
-    {
-      "name": "instr_timing",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/instr_timing/instr_timing.gb"
-      ]
-    },
-    {
-      "name": "interrupt_time",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/interrupt_time/interrupt_time.gb"
-      ]
-    },
-    {
-      "name": "mem_timing",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/mem_timing/mem_timing.gb"
-      ]
-    },
-    {
-      "name": "mem_timing:02-write_timing",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/mem_timing/individual/02-write_timing.gb"
-      ]
-    },
-    {
-      "name": "mem_timing-2",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/mem_timing-2/mem_timing.gb"
-      ]
-    },
-    {
-      "name": "oam_bug",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/oam_bug/oam_bug.gb"
-      ]
-    },
-    {
-      "name": "halt_bug",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/halt_bug.gb"
-      ]
-    },
-    {
-      "name": "double-halt-cancel",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/little-things/double-halt-cancel.gb"
-      ]
-    },
-    {
-      "name": "windesync-validate",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/little-things/windesync-validate.gb"
-      ]
-    },
-    {
-      "name": "Tetris",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/tetris.gb"
-      ]
-    },
-    {
-      "name": "Super Mario Land",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/mario.gb"
-      ]
-    },
-    {
-      "name": "Link's Awakening",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/cmd/guitest/",
-      "args": [
-        "/Users/wayne/ROMs/Game Boy/zelda.gb"
-      ]
-    },
-    {
       "name": "Alfred Chicken",
       "type": "go",
       "request": "launch",
       "mode": "debug",
+      "buildFlags": "-tags 'dev'",
       "program": "${workspaceFolder}/cmd/guitest/",
       "args": [
         "/Users/wayne/ROMs/Game Boy/Alfred Chicken (USA).gb"
@@ -157,6 +18,7 @@
       "type": "go",
       "request": "launch",
       "mode": "debug",
+      "buildFlags": "-tags 'dev'",
       "program": "${workspaceFolder}/cmd/guitest/",
       "args": [
         "/Users/wayne/ROMs/No-Intro - Nintendo - Game Boy (2017-07-02)/Donkey Kong (World) (Rev A) (SGB Enhanced).zip"

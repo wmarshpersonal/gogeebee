@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/wmarshpersonal/gogeebee/apu"
 	"github.com/wmarshpersonal/gogeebee/cartridge"
 	"github.com/wmarshpersonal/gogeebee/cpu"
 	"github.com/wmarshpersonal/gogeebee/ppu"
 )
 
+const TCyclesPerSecond = 4_194_304
 const TCyclesPerRegularFrame = 70224
 
 type GB struct {
@@ -18,8 +20,8 @@ type GB struct {
 	// Components
 	CPU   cpu.State
 	Timer Timer
+	APU   apu.APU
 	PPU   ppu.PPU
-	LCD   ppu.PixelBuffer
 	MBC   cartridge.MBC
 	// RAM
 	VRAM  [0x2000]byte
@@ -30,6 +32,8 @@ type GB struct {
 	// IO
 	JOYP Joy1
 
+	lcd ppu.PixelBuffer
+
 	dirs JoypadDirections
 	btns JoypadButtons
 }
@@ -39,22 +43,14 @@ func NewDMG(mbc cartridge.MBC) *GB {
 		MBC:   mbc,
 		CPU:   *cpu.NewResetState(),
 		Timer: *NewDMGTimer(),
+		APU:   *apu.NewDMG0APU(),
 		PPU:   *ppu.NewDMG0PPU(),
-		LCD:   ppu.PixelBuffer{},
 		JOYP:  0xCF,
+		lcd:   ppu.PixelBuffer{},
 	}
 }
 
-// RunFrame executes the Game Boy for the length of one frame.
-// As PPU synchronization can cause the Game Boy's refresh rate to vary,
-// this function returns the number of T-cycles actually executed.
-// Usually it's 70224 T-cycles per frame.
-func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) (tCycles int) {
-	var (
-		cyclesAtStart = gb.cycles
-		clearFrame    bool
-	)
-
+func (gb *GB) ProcessJoypad(btns JoypadButtons, dirs JoypadDirections) {
 	// JOY interrupt?
 	prevJoy := gb.JOYP.Read(gb.btns, gb.dirs)
 	curJoy := gb.JOYP.Read(btns, dirs)
@@ -64,25 +60,21 @@ func (gb *GB) RunFrame(dirs JoypadDirections, btns JoypadButtons) (tCycles int) 
 		}
 	}
 	gb.btns, gb.dirs = btns, dirs
+}
 
-	// on PPU re-activation, spin the system until the PPU is back in sync.
-	for gb.PPU.Enabled() && !gb.PPU.AtStartOfVBlank() {
-		clearFrame = true // LCD is blank during catch-up frames
+// RunFor executes the system for a number of t-cycles.
+func (gb *GB) RunFor(cycles int, frame *ppu.PixelBuffer) (drawn int) {
+	for range cycles {
+		lastMode := gb.PPU.Mode()
 		gb.stepHardware()
-	}
-
-	for range TCyclesPerRegularFrame {
-		gb.stepHardware()
-		if !gb.PPU.Enabled() {
-			clearFrame = true
+		// TODO: handle frame clearing
+		if gb.PPU.Enabled() && gb.PPU.Mode() == ppu.VBlank && lastMode != ppu.VBlank {
+			drawn++
+			copy(frame[:], gb.lcd[:])
 		}
 	}
 
-	if clearFrame {
-		clear(gb.LCD[:])
-	}
-
-	return int(gb.cycles - cyclesAtStart)
+	return
 }
 
 // run for one t-cycle
@@ -90,7 +82,7 @@ func (gb *GB) stepHardware() {
 	// ppu
 	prevVblankLine := gb.PPU.VBLANKLine
 	prevStatLine := gb.PPU.STATLine
-	gb.PPU.StepT(gb.VRAM[:], gb.OAM[:], &gb.LCD)
+	gb.PPU.StepT(gb.VRAM[:], gb.OAM[:], &gb.lcd)
 
 	// ppu interrupts
 	if gb.PPU.VBLANKLine && !prevVblankLine {
@@ -105,6 +97,9 @@ func (gb *GB) stepHardware() {
 	if gb.Timer.IR {
 		gb.CPU.IF |= 4
 	}
+
+	// apu
+	gb.APU.StepT(gb.Timer.Read(DIV))
 
 	// M-cycled components (CPU, DMA)
 	if gb.cycles%4 == 0 {
@@ -172,39 +167,84 @@ func (gb *GB) ReadIO(port uint8) (value uint8) {
 	case 0x00: // P1/JOYP
 		value = gb.JOYP.Read(gb.btns, gb.dirs)
 	case 0x04: // DIV
-		return gb.Timer.Read(DIV)
+		value = gb.Timer.Read(DIV)
 	case 0x05: // TIMA
-		return gb.Timer.Read(TIMA)
+		value = gb.Timer.Read(TIMA)
 	case 0x06: // TMA
-		return gb.Timer.Read(TMA)
+		value = gb.Timer.Read(TMA)
 	case 0x07: // TAC
-		return gb.Timer.Read(TAC)
+		value = gb.Timer.Read(TAC)
 	case 0x0F: // IF
-		return gb.CPU.IF
+		value = gb.CPU.IF
+	case 0x10: // NR10
+		value = gb.APU.ReadRegister(apu.NR10)
+	case 0x11: // NR11
+		value = gb.APU.ReadRegister(apu.NR11)
+	case 0x12: // NR12
+		value = gb.APU.ReadRegister(apu.NR12)
+	case 0x13: // NR13
+		value = gb.APU.ReadRegister(apu.NR13)
+	case 0x14: // NR14
+		value = gb.APU.ReadRegister(apu.NR14)
+	case 0x16: // NR21
+		value = gb.APU.ReadRegister(apu.NR21)
+	case 0x17: // NR22
+		value = gb.APU.ReadRegister(apu.NR22)
+	case 0x18: // NR23
+		value = gb.APU.ReadRegister(apu.NR23)
+	case 0x19: // NR24
+		value = gb.APU.ReadRegister(apu.NR24)
+	case 0x1A: // NR30
+		value = gb.APU.ReadRegister(apu.NR30)
+	case 0x1B: // NR31
+		value = gb.APU.ReadRegister(apu.NR31)
+	case 0x1C: // NR32
+		value = gb.APU.ReadRegister(apu.NR32)
+	case 0x1D: // NR33
+		value = gb.APU.ReadRegister(apu.NR33)
+	case 0x1E: // NR34
+		value = gb.APU.ReadRegister(apu.NR34)
+	case 0x20: // NR41
+		value = gb.APU.ReadRegister(apu.NR41)
+	case 0x21: // NR42
+		value = gb.APU.ReadRegister(apu.NR42)
+	case 0x22: // NR43
+		value = gb.APU.ReadRegister(apu.NR43)
+	case 0x23: // NR44
+		value = gb.APU.ReadRegister(apu.NR44)
+	case 0x24: // NR50
+		value = gb.APU.ReadRegister(apu.NR50)
+	case 0x25: // NR51
+		value = gb.APU.ReadRegister(apu.NR51)
+	case 0x26: // NR52
+		value = gb.APU.ReadRegister(apu.NR52)
+	case 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+		0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F: // Wave RAM
+		value = gb.APU.ReadWave(int(port) & 0xF)
 	case 0x40: // LCDC
-		return gb.PPU.ReadRegister(ppu.LCDC)
+		value = gb.PPU.ReadRegister(ppu.LCDC)
 	case 0x41: // STAT
-		return gb.PPU.ReadRegister(ppu.STAT)
+		value = gb.PPU.ReadRegister(ppu.STAT)
 	case 0x42: // SCY
-		return gb.PPU.ReadRegister(ppu.SCY)
+		value = gb.PPU.ReadRegister(ppu.SCY)
 	case 0x43: // SCX
-		return gb.PPU.ReadRegister(ppu.SCX)
+		value = gb.PPU.ReadRegister(ppu.SCX)
 	case 0x44: // LY
-		return gb.PPU.ReadRegister(ppu.LY)
+		value = gb.PPU.ReadRegister(ppu.LY)
 	case 0x45: // LYC
-		return gb.PPU.ReadRegister(ppu.LYC)
+		value = gb.PPU.ReadRegister(ppu.LYC)
 	case 0x46: // DMA
-		return gb.PPU.ReadRegister(ppu.DMA)
+		value = gb.PPU.ReadRegister(ppu.DMA)
 	case 0x47: // BGP
-		return gb.PPU.ReadRegister(ppu.BGP)
+		value = gb.PPU.ReadRegister(ppu.BGP)
 	case 0x48: // OBP0
-		return gb.PPU.ReadRegister(ppu.OBP0)
+		value = gb.PPU.ReadRegister(ppu.OBP0)
 	case 0x49: // OBP1
-		return gb.PPU.ReadRegister(ppu.OBP1)
+		value = gb.PPU.ReadRegister(ppu.OBP1)
 	case 0x4A: // WY
-		return gb.PPU.ReadRegister(ppu.WY)
+		value = gb.PPU.ReadRegister(ppu.WY)
 	case 0x4B: // WX
-		return gb.PPU.ReadRegister(ppu.WX)
+		value = gb.PPU.ReadRegister(ppu.WX)
 	default:
 		// slog.LogAttrs(context.Background(),
 		// 	slog.LevelWarn,
@@ -262,6 +302,51 @@ func (gb *GB) WriteIO(port, value uint8) {
 		gb.Timer.Write(TAC, value)
 	case 0x0F: // IF
 		gb.CPU.IF = (gb.CPU.IF & 0xE0) | value&0x1F
+	case 0x10: // NR10
+		gb.APU.WriteRegister(apu.NR10, value)
+	case 0x11: // NR11
+		gb.APU.WriteRegister(apu.NR11, value)
+	case 0x12: // NR12
+		gb.APU.WriteRegister(apu.NR12, value)
+	case 0x13: // NR13
+		gb.APU.WriteRegister(apu.NR13, value)
+	case 0x14: // NR14
+		gb.APU.WriteRegister(apu.NR14, value)
+	case 0x16: // NR21
+		gb.APU.WriteRegister(apu.NR21, value)
+	case 0x17: // NR22
+		gb.APU.WriteRegister(apu.NR22, value)
+	case 0x18: // NR23
+		gb.APU.WriteRegister(apu.NR23, value)
+	case 0x19: // NR24
+		gb.APU.WriteRegister(apu.NR24, value)
+	case 0x1A: // NR30
+		gb.APU.WriteRegister(apu.NR30, value)
+	case 0x1B: // NR31
+		gb.APU.WriteRegister(apu.NR31, value)
+	case 0x1C: // NR32
+		gb.APU.WriteRegister(apu.NR32, value)
+	case 0x1D: // NR33
+		gb.APU.WriteRegister(apu.NR33, value)
+	case 0x1E: // NR34
+		gb.APU.WriteRegister(apu.NR34, value)
+	case 0x20: // NR41
+		gb.APU.WriteRegister(apu.NR41, value)
+	case 0x21: // NR42
+		gb.APU.WriteRegister(apu.NR42, value)
+	case 0x22: // NR43
+		gb.APU.WriteRegister(apu.NR43, value)
+	case 0x23: // NR44
+		gb.APU.WriteRegister(apu.NR44, value)
+	case 0x24: // NR50
+		gb.APU.WriteRegister(apu.NR50, value)
+	case 0x25: // NR51
+		gb.APU.WriteRegister(apu.NR51, value)
+	case 0x26: // NR52
+		gb.APU.WriteRegister(apu.NR52, value)
+	case 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+		0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F: // Wave RAM
+		gb.APU.WriteWave(int(port)&0xF, value)
 	case 0x40: // LCDC
 		gb.PPU.WriteRegister(ppu.LCDC, value)
 	case 0x41: // STAT
