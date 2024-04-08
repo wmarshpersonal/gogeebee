@@ -6,7 +6,7 @@ import (
 	"github.com/wmarshpersonal/gogeebee/ppu"
 )
 
-// TODO: rewrite all of this
+// TODO: this is all just temporary nonsense
 type synchronization struct {
 	cond *sync.Cond
 
@@ -16,7 +16,7 @@ type synchronization struct {
 
 func (s *synchronization) addSamples(samples []byte) {
 	s.cond.L.Lock()
-	max := len(samples)
+	max := 150_000 * len(samples) / 100_000
 	for len(s.audioSamples) > max {
 		s.cond.Wait()
 	}
@@ -25,11 +25,15 @@ func (s *synchronization) addSamples(samples []byte) {
 	s.cond.L.Unlock()
 }
 
-func (s *synchronization) addFrame(f ppu.PixelBuffer) {
+func (s *synchronization) addFrame(f ppu.PixelBuffer) (dropped bool) {
 	s.cond.L.Lock()
+	if s.frame != nil {
+		dropped = true
+	}
 	s.frame = &f
 	s.cond.Broadcast()
 	s.cond.L.Unlock()
+	return
 }
 
 func (s *synchronization) tryConsumeFrame() (f ppu.PixelBuffer, ok bool) {

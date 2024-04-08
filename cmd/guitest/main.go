@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	width, height   = 160, 144
-	sampleRate      = 96000
-	framesPerSecond = 60
+	width, height = 160, 144
+	sampleRate    = 48000
 )
 
 func main() {
@@ -36,6 +35,8 @@ func app() (err error) {
 
 	ebiten.SetWindowTitle("gogeebee")
 	ebiten.SetWindowSize(width*4, height*4)
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	ebiten.SetRunnableOnUnfocused(false)
 	ebiten.SetScreenClearedEveryFrame(false)
 	ebiten.SetTPS(ebiten.SyncWithFPS)
 

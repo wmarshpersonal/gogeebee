@@ -3,10 +3,13 @@ package main
 import (
 	"log/slog"
 	"math"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/hajimehoshi/ebiten/v2/audio"
+	"github.com/ebitengine/oto/v3"
+	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/wmarshpersonal/gogeebee/cartridge"
 	"github.com/wmarshpersonal/gogeebee/gb"
@@ -42,39 +45,64 @@ func initGame(romData []byte) (*Game, error) {
 		},
 	}
 
-	ac := audio.NewContext(sampleRate)
-	if p, err := ac.NewPlayer(&audioStream{sync: &g.sync}); err != nil {
-		panic(err)
-	} else {
-		p.SetBufferSize(time.Millisecond * 20)
-		p.Play()
-		// defer p.Close()
+	const chs = 2
+	op := &oto.NewContextOptions{}
+	op.SampleRate = sampleRate
+	op.ChannelCount = chs
+	op.Format = oto.FormatFloat32LE
+
+	otoCtx, readyChan, err := oto.NewContext(op)
+	if err != nil {
+		return nil, err
 	}
+	<-readyChan
+
+	str := &audioStream{&g.sync}
+	p := otoCtx.NewPlayer(str)
+	time.AfterFunc(math.MaxInt64, func() { runtime.KeepAlive(p) })
+
+	const bufferSize = 12288
+	p.SetBufferSize(12288)
+
+	p.Play()
+	// defer p.Close()
+
+	var fa atomic.Value
+	fa.Store(440.0)
 
 	go func() {
-		var f float64 = 440
+		for {
+			f := 440.
+			if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+				f = 520.
+			}
+			fa.Store(f)
+			runtime.Gosched()
+		}
+	}()
+
+	go func() {
 		var phase float64
 		var samples []byte
 		var frame ppu.PixelBuffer
 		for {
-			drawn := g.gb.RunFor(gb.TCyclesPerSecond/framesPerSecond, &frame)
+			drawn := g.gb.RunFor(gb.TCyclesPerSecond*(bufferSize/8)/sampleRate, &frame)
+			var dropped bool
 			if drawn > 0 {
-				g.sync.addFrame(frame)
+				dropped = g.sync.addFrame(frame)
 			}
 			samples = samples[:0]
-			const samplesPerFrame = sampleRate / framesPerSecond
+			const samplesPerFrame = bufferSize / 4 / chs
+			f := fa.Load().(float64)
 			for i := 0; i < samplesPerFrame; i++ {
-				s := math.Sin(phase)
 				phase += f * 2 * math.Pi / sampleRate
-				v := int16(s * (math.MaxInt16 - 1))
-				samples = append(samples, byte(v), byte(v>>8), byte(v), byte(v>>8))
+				bits := math.Float32bits(0.3 * float32(math.Sin(phase)))
+				samples = append(samples, byte(bits), byte(bits>>8), byte(bits>>16), byte(bits>>24))
+				samples = append(samples, byte(bits), byte(bits>>8), byte(bits>>16), byte(bits>>24))
 			}
 			g.sync.addSamples(samples)
-			//
-			// dropped calc is wrong. needs to be checked in synchronization
-			dropped := max(0, drawn-1)
-			if dropped > 0 {
-				slog.Debug("frame drop", slog.Int("dropped", dropped))
+			if dropped {
+				slog.Debug("dropped frame")
 			}
 		}
 	}()
