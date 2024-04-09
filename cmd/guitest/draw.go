@@ -22,20 +22,6 @@ var palette = [4]color.Color{
 func (g *Game) Draw(screen *ebiten.Image) {
 	frame, ok := g.sync.tryConsumeFrame()
 
-	// takeFrame:
-	// 	for {
-	// 		select {
-	// 		case frame = <-g.frames:
-	// 			count++
-	// 		default:
-	// 			break takeFrame
-	// 		}
-	// 	}
-
-	// if count > 1 {
-	// 	slog.Debug("dropped", slog.Int("frames", count-1))
-	// }
-
 	if ok {
 		var pp ppu.PackedPixels
 		for y := 0; y < ppu.ScreenHeight; y++ {

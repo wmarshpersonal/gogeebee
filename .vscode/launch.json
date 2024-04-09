@@ -21,7 +21,40 @@
       "buildFlags": "-tags 'dev'",
       "program": "${workspaceFolder}/cmd/guitest/",
       "args": [
-        "/Users/wayne/ROMs/No-Intro - Nintendo - Game Boy (2017-07-02)/Donkey Kong (World) (Rev A) (SGB Enhanced).zip"
+        "/Users/wayne/ROMs/Game Boy/Donkey Kong (World) (Rev A) (SGB Enhanced).zip"
+      ]
+    },
+    {
+      "name": "Wario Land",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Wario Land - Super Mario Land 3 (World).zip"
+      ]
+    },
+    {
+      "name": "Wave Race",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Wave Race (USA, Europe).zip"
+      ]
+    },
+    {
+      "name": "Castlevania II - Belmont's Revenge",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Castlevania II - Belmont's Revenge (USA, Europe).zip"
       ]
     }
   ],

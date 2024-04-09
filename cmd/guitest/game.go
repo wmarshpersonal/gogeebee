@@ -22,8 +22,6 @@ type Game struct {
 }
 
 func (g *Game) Update() error {
-	// g.gb.ProcessJoypad(ReadButtons(), ReadDirections())
-
 	return nil
 }
 
@@ -86,6 +84,7 @@ func initGame(romData []byte) (*Game, error) {
 		var samples []byte
 		var frame ppu.PixelBuffer
 		for {
+			g.gb.ProcessJoypad(ReadButtons(), ReadDirections())
 			drawn := g.gb.RunFor(gb.TCyclesPerSecond*(bufferSize/8)/sampleRate, &frame)
 			var dropped bool
 			if drawn > 0 {
