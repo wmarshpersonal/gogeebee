@@ -11,7 +11,7 @@ import (
 
 func openROMFile(path string) ([]byte, error) {
 	if zr, err := zip.OpenReader(path); err == nil {
-		slog.Info("looks like a zip file", "path", path)
+		slog.Debug("looks like a zip file", "path", path)
 		defer zr.Close()
 		if romData, err := openZippedROM(zr); err != nil {
 			return nil, err

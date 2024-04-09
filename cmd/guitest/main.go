@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/wmarshpersonal/gogeebee/cartridge"
 )
 
 const (
@@ -43,6 +44,12 @@ func app() (err error) {
 	romData, err := openROMFile(os.Args[1])
 	if err != nil {
 		return fmt.Errorf("failed opening rom file %w", err)
+	}
+
+	if h, err := cartridge.ReadHeader(romData); err != nil {
+		return fmt.Errorf("bad header %w", err)
+	} else {
+		slog.Info("cartridge header", "header", h)
 	}
 
 	if game, err := initGame(romData); err != nil {
