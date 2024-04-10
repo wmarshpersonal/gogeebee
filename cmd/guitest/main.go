@@ -21,7 +21,7 @@ func main() {
 		slog.SetDefault(logger)
 		defer sync()
 		if err := app(); err != nil {
-			slog.Error("fatal error", "err", err)
+			fmt.Fprintf(os.Stderr, "quitting due to fatal error: %v\n", err)
 			exitCode = 1
 		}
 		return

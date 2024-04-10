@@ -24,6 +24,14 @@ func (e HeaderTruncatedError) Error() string {
 	)
 }
 
+func (m HeaderTruncatedError) Is(target error) bool {
+	switch target.(type) {
+	case *HeaderTruncatedError:
+		return true
+	}
+	return false
+}
+
 type Header struct {
 	Title Title
 	MBC   MBCType
@@ -51,63 +59,60 @@ func (h Header) LogValue() slog.Value {
 func ReadHeader(cartridge Cartridge) (Header, error) {
 	var h Header
 	return h, multierr.Combine(
-		ReadHeaderValue(cartridge, &h.Title),
-		ReadHeaderValue(cartridge, &h.MBC),
-		ReadHeaderValue(cartridge, &h.ROM),
-		ReadHeaderValue(cartridge, &h.RAM),
+		ReadCartridgeTitle(cartridge, &h.Title),
+		ReadCartridgeHeaderByte(cartridge, &h.MBC),
+		ReadCartridgeHeaderByte(cartridge, &h.ROM),
+		ReadCartridgeHeaderByte(cartridge, &h.RAM),
 	)
 }
 
-// ReadHeaderValue will read the specified header value from the cartridge
-// into the passed-in value pointer. If the passed-in pointer is nil, ReadHeaderValue panics.
-// HeaderTruncatedError is returned if the data isn't available (truncated header).
-func ReadHeaderValue[T interface {
+func ReadCartridgeTitle(cartridge Cartridge, title *Title) error {
+	if title == nil {
+		panic("nil title")
+	}
+
+	var addr int = int(title.Address())
+	if len(cartridge) < addr+len(title) {
+		return HeaderTruncatedError{
+			HeaderDataLength: len(cartridge),
+			WantedIndex:      addr,
+			WantedLength:     len(title),
+		}
+	}
+
+	copy(title[:], cartridge[addr:])
+
+	return nil
+}
+
+type HeaderField interface {
 	Title | MBCType | ROMSize | RAMSize
-}](
-	cartridge Cartridge,
-	value *T,
-) error {
-	if value == nil {
-		panic("value == nil")
-	}
+	Address() uint16
+}
 
-	rs := func(dst []byte, s int) error {
-		if s >= len(cartridge) || copy(dst, cartridge[s:]) != len(dst) {
-			return HeaderTruncatedError{
-				HeaderDataLength: len(cartridge),
-				WantedIndex:      s,
-				WantedLength:     len(dst),
-			}
+func ReadCartridgeHeaderByte[T interface {
+	~byte
+	HeaderField
+}](cartridge Cartridge, field *T) error {
+	addr := (*field).Address()
+	if len(cartridge) <= int(addr) {
+		return HeaderTruncatedError{
+			HeaderDataLength: len(cartridge),
+			WantedIndex:      int(addr),
+			WantedLength:     1,
 		}
-
-		return nil
+	} else {
+		*field = T(cartridge[addr])
 	}
-
-	rb := func(dst *byte, i int) error {
-		var b [1]byte
-		if err := rs(b[:], i); err != nil {
-			return err
-		}
-		*dst = b[0]
-		return nil
-	}
-
-	switch ptr := any(value).(type) {
-	case *Title:
-		return rs((*ptr)[:], 0x134)
-	case *MBCType:
-		return rb((*byte)(ptr), 0x147)
-	case *ROMSize:
-		return rb((*byte)(ptr), 0x148)
-	case *RAMSize:
-		return rb((*byte)(ptr), 0x149)
-	default:
-		panic("unknown header field")
-	}
+	return nil
 }
 
 // Title maps the cartridge header's title bytes field to a native string.
 type Title [16]byte
+
+func (*Title) Address() uint16 {
+	return 0x134
+}
 
 func (t Title) String() string {
 	var s strings.Builder
@@ -124,6 +129,10 @@ func (t Title) String() string {
 
 // MBCType maps the cartridge header's type field to a cartridge/MBC type.
 type MBCType uint8
+
+func (MBCType) Address() uint16 {
+	return 0x147
+}
 
 const (
 	ROMOnly                        MBCType = 0x00 // ROM ONLY
@@ -169,29 +178,75 @@ const (
 // ROMSize maps the cartridge header ROM size field to real values.
 type ROMSize uint8
 
+const (
+	ROM_32KB ROMSize = iota
+	ROM_64KB
+	ROM_128KB
+	ROM_256KB
+	ROM_512KB
+	ROM_1MB
+	ROM_2MB
+	ROM_4MB
+	ROM_8MB
+	// warning: speculation!
+	ROM_1_1MB ROMSize = 0x52
+	ROM_1_2MB ROMSize = 0x53
+	ROM_1_5MB ROMSize = 0x54
+)
+
+func (ROMSize) Address() uint16 {
+	return 0x148
+}
+
 // Banks returns the number of ROM banks.
-func (rs ROMSize) Banks() int {
-	return 2 * (1 << rs)
+func (romSize ROMSize) Banks() (banks int) {
+	switch romSize {
+	case ROM_1_1MB:
+		banks = 72
+	case ROM_1_2MB:
+		banks = 80
+	case ROM_1_5MB:
+		banks = 96
+	default:
+		banks = 2 * (1 << romSize)
+	}
+	return
 }
 
 // Size returns the ROM size in bytes.
-func (rs ROMSize) Size() int {
-	return 16 * 1024 * rs.Banks()
+func (romSize ROMSize) Size() int {
+	return 0x4000 * romSize.Banks()
 }
 
-func (rs ROMSize) String() string {
-	if rs <= 4 {
-		return fmt.Sprintf("%d KiB", 32*(1<<rs))
+func (romSize ROMSize) String() string {
+	if romSize.Banks() < 64 {
+		return fmt.Sprintf("%d KiB", romSize.Banks()*16)
 	}
-	return fmt.Sprintf("%d MiB", (1 << (rs - 5)))
+	if romSize.Banks()%64 == 0 {
+		return fmt.Sprintf("%d MiB", romSize.Banks()>>6)
+	}
+	return fmt.Sprintf("%.1f MiB", float32(romSize.Size())/(1024.*1024.))
 }
 
 // RAMSize maps the cartridge header RAM size field to real values.
 type RAMSize uint8
 
+const (
+	RAM_None RAMSize = iota
+	RAM_Unused
+	RAM_8KB   // 	$02	8 KiB	1 bank
+	RAM_32KB  // $03	32 KiB	4 banks of 8 KiB each
+	RAM_128KB // $04	128 KiB	16 banks of 8 KiB each
+	RAM_64KB  // $05	64 KiB
+)
+
+func (RAMSize) Address() uint16 {
+	return 0x149
+}
+
 // Banks returns the number of RAM banks.
-func (rs RAMSize) Banks() int {
-	switch rs {
+func (ramSize RAMSize) Banks() int {
+	switch ramSize {
 	case 0x02:
 		return 1
 	case 0x03:
@@ -206,12 +261,12 @@ func (rs RAMSize) Banks() int {
 }
 
 // Size returns the RAM size in bytes.
-func (rs RAMSize) Size() int {
-	return rs.Banks() * 8 * 1024
+func (ramSize RAMSize) Size() int {
+	return ramSize.Banks() * 0x2000
 }
 
-func (rs RAMSize) String() string {
-	kib := rs.Banks() * 8
+func (ramSize RAMSize) String() string {
+	kib := ramSize.Banks() * 8
 	if kib == 0 {
 		return "No RAM"
 	}

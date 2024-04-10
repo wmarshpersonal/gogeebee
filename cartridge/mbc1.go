@@ -2,7 +2,6 @@ package cartridge
 
 import (
 	"fmt"
-	"slices"
 
 	"go.uber.org/multierr"
 )
@@ -10,10 +9,12 @@ import (
 type MBC1Mapper struct {
 	data []byte
 
-	Mode       MBC1Mode
+	Registers [4]uint8
+	RAM       []byte
+
+	ROMSize    ROMSize
+	RAMSize    RAMSize
 	RAMEnabled bool
-	Registers  [4]uint8
-	RAM        []byte
 }
 
 type MBC1Mode uint8
@@ -39,9 +40,9 @@ func NewMBC1Mapper(cartridge Cartridge) (*MBC1Mapper, error) {
 		ram RAMSize
 	)
 	if err := multierr.Combine(
-		ReadHeaderValue(cartridge, &mbc),
-		ReadHeaderValue(cartridge, &rom),
-		ReadHeaderValue(cartridge, &ram),
+		ReadCartridgeHeaderByte(cartridge, &mbc),
+		ReadCartridgeHeaderByte(cartridge, &rom),
+		ReadCartridgeHeaderByte(cartridge, &ram),
 	); err != nil {
 		return nil, err
 	}
@@ -58,36 +59,37 @@ func NewMBC1Mapper(cartridge Cartridge) (*MBC1Mapper, error) {
 	}
 
 	return &MBC1Mapper{
-		data: slices.Clip(cartridge[:rom.Size()]),
-		RAM:  make([]byte, 8*1024*ram.Banks()),
+		data:    cartridge[:rom.Size()],
+		RAM:     make([]byte, ram.Size()),
+		ROMSize: rom,
+		RAMSize: ram,
 	}, nil
+}
+
+func (mbc *MBC1Mapper) Mode() MBC1Mode {
+	return MBC1Mode(mbc.Registers[MBC1ModeSelect] & 1)
 }
 
 func (mbc *MBC1Mapper) Read(addr uint16) uint8 {
 	if addr <= 0x3FFF { // bank 0
-		var bsh int
-		switch MBC1Mode(mbc.Registers[MBC1ModeSelect] & 1) {
-		case SimpleBanking:
-			bsh = 0
-		case AdvancedBanking:
-			bsh = int(mbc.Registers[MBC1RAMROMUpper]&3) << 19
-		default:
-			panic("invalid MBC1 mode")
-		}
-		return mbc.data[(int(addr&0x3FFF)|bsh<<19)%len(mbc.data)]
+		return mbc.data[mbc1ROM0ReadAddress(
+			addr,
+			mbc.Mode(),
+			mbc.ROMSize.Banks(),
+			mbc.Registers[MBC1RAMROMUpper],
+		)]
 	} else if addr <= 0x7FFF { // switchable bank
-		bsl := int(mbc.Registers[MBC1ROMBank] & 0x1F)
-		if bsl == 0 {
-			bsl = 1
-		}
-		bsh := int(mbc.Registers[MBC1RAMROMUpper] & 3)
-		return mbc.data[(int(addr&0x3FFF) | (bsl << 14) | (bsh << 19))]
+		return mbc.data[mbc1ROMNReadAddress(
+			addr,
+			mbc.ROMSize.Banks(),
+			mbc.Registers[MBC1RAMROMUpper],
+			mbc.Registers[MBC1ROMBank],
+		)]
 	} else { // ram
-		if len(mbc.RAM) == 0 {
+		if mbc.RAMSize.Banks() == 0 {
 			return 0xFF
-		} else {
-			return mbc.RAM[mbc.ramAddress(addr)]
 		}
+		return mbc.RAM[mbc1RAMAddress(addr, mbc.Mode(), mbc.RAMSize.Banks(), mbc.Registers[MBC1RAMROMUpper])]
 	}
 }
 
@@ -96,23 +98,37 @@ func (mbc *MBC1Mapper) Write(addr uint16, v uint8) {
 		reg := MBC1Register(((addr >> 12) & 0xF) >> 1)
 		if reg == MBC1ROMBank {
 			v &= 0x1F
+		} else if reg == MBC1RAMROMUpper {
+			v &= 3
 		}
 		mbc.Registers[reg] = v
 	} else { // ram
 		if len(mbc.RAM) != 0 {
-			mbc.RAM[mbc.ramAddress(addr)] = v
+			mbc.RAM[mbc1RAMAddress(addr, mbc.Mode(), mbc.RAMSize.Banks(), mbc.Registers[MBC1RAMROMUpper])] = v
 		}
 	}
 }
 
-func (mbc *MBC1Mapper) ramAddress(addr uint16) int {
-	switch MBC1Mode(mbc.Registers[MBC1ModeSelect] & 1) {
-	case SimpleBanking:
-		return int(addr) & 0x1FFF
-	case AdvancedBanking:
-		rs := int(mbc.Registers[MBC1RAMROMUpper] & 3)
-		return int(addr&0x1FFF) | (rs << 13)
-	default:
-		panic("invalid MBC1 mode")
+func mbc1ROM0ReadAddress(addr uint16, mode MBC1Mode, banks int, bankHi uint8) int {
+	var bank uint8
+	if mode == AdvancedBanking {
+		bank |= (bankHi & 3) << 5
 	}
+	return int(addr&0x3FFF) | (int(bank&uint8(banks-1)) << 14)
+}
+
+func mbc1ROMNReadAddress(addr uint16, banks int, bankHi, bankLo uint8) int {
+	var bank uint8 = ((bankHi&3)<<5 | (bankLo & 0x1F))
+	if bankLo == 0 {
+		bank |= 1
+	}
+	return int(addr&0x3FFF) | ((int(bank & uint8(banks-1))) << 14)
+}
+
+func mbc1RAMAddress(addr uint16, mode MBC1Mode, banks int, bankHi uint8) int {
+	var bank uint8
+	if mode == AdvancedBanking {
+		bank = (bankHi & 3)
+	}
+	return int(addr&0x1FFF) | (int(bank&uint8(banks-1)) << 13)
 }
