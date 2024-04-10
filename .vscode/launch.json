@@ -3,6 +3,17 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "cart stats",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/cart_stats/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy"
+      ]
+    },
+    {
       "name": "Alfred Chicken",
       "type": "go",
       "request": "launch",
@@ -36,7 +47,7 @@
       ]
     },
     {
-      "name": "Wave Race",
+      "name": "Wave Race (MBC2) (flicker effects)",
       "type": "go",
       "request": "launch",
       "mode": "debug",
@@ -47,7 +58,7 @@
       ]
     },
     {
-      "name": "Castlevania II - Belmont's Revenge",
+      "name": "Castlevania II - Belmont's Revenge (flicker effects)",
       "type": "go",
       "request": "launch",
       "mode": "debug",
@@ -56,6 +67,28 @@
       "args": [
         "/Users/wayne/ROMs/Game Boy/Castlevania II - Belmont's Revenge (USA, Europe).zip"
       ]
-    }
+    },
+    {
+      "name": "Mortal Kombat (bugs at title screen)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Mortal Kombat (USA, Europe).zip"
+      ]
+    },
+    {
+      "name": "Yu-Gi-Oh! Duel Monsters (MBC1 1MB with RAM)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Yu-Gi-Oh! Duel Monsters (Japan) (SGB Enhanced).zip"
+      ]
+    },
   ],
 }
