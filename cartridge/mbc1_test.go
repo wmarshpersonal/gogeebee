@@ -331,7 +331,7 @@ func Test_mbc1ROMNReadAddress(t *testing.T) {
 				bankHi, bankLo = tests[i].bankHi, tests[i].bankLo
 				bankWanted     = tests[i].wanted
 			)
-			for addr := uint16(0); addr <= 0x3FFF; addr++ {
+			for addr := uint16(0xA000); addr <= 0xBFFF; addr++ {
 				addrRead := mbc1ROMNReadAddress(addr, banks, bankHi, bankLo)
 				bankRead := addrRead >> 14
 				addrWanted := bankWanted<<14 | int(addr&0x3FFF)

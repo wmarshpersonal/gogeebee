@@ -2,6 +2,7 @@ package cartridge
 
 import (
 	"fmt"
+	"slices"
 
 	"go.uber.org/multierr"
 )
@@ -58,7 +59,7 @@ func NewMBC1Mapper(cartridge Cartridge) (*MBC1Mapper, error) {
 	}
 
 	return &MBC1Mapper{
-		data:    cartridge[:rom.Size()],
+		data:    slices.Clip(cartridge[:rom.Size()]),
 		RAM:     make([]byte, ram.Size()),
 		ROMSize: rom,
 		RAMSize: ram,
@@ -84,12 +85,14 @@ func (mbc *MBC1Mapper) Read(addr uint16) uint8 {
 			mbc.Registers[MBC1RAMROMUpper],
 			mbc.Registers[MBC1ROMBank],
 		)]
-	} else { // ram
+	} else if addr >= 0xA000 && addr <= 0xBFFF { // ram
 		if mbc.RAMSize.Banks() == 0 || mbc.Registers[MBC1RAMEnable]&0xF != 0xA {
 			return 0xFF
 		}
 		return mbc.RAM[mbc1RAMAddress(addr, mbc.Mode(), mbc.RAMSize.Banks(), mbc.Registers[MBC1RAMROMUpper])]
 	}
+
+	return 0xFF
 }
 
 func (mbc *MBC1Mapper) Write(addr uint16, v uint8) {

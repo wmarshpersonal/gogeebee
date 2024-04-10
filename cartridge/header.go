@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 	"unicode"
 
@@ -271,36 +270,4 @@ func (ramSize RAMSize) String() string {
 		return "No RAM"
 	}
 	return fmt.Sprintf("%d KiB", kib)
-}
-
-var capMap map[Capabilities][]MBCType = map[Capabilities][]MBCType{
-	RAM: {MBC1_RAM, MBC1_RAM_Battery, Unknown_ROM_RAM, Unknown_ROM_RAM_Battery, MMM01_RAM,
-		MMM01_RAM_Battery, MBC3_Timer_RAM_Battery, MBC3_RAM, MBC3_RAM_Battery, MBC5_RAM,
-		MBC5_RAM_Battery, MBC5_Rumble_RAM, MBC_Rumble_RAM_Battery, MBC7_Sensor_Rumble_RAM_Battery,
-		HuC1_RAM_Battery},
-	Battery: {MBC1_RAM_Battery, MBC2_Battery, Unknown_ROM_RAM_Battery, MMM01_RAM_Battery,
-		MBC3_Timer_Battery, MBC3_Timer_RAM_Battery, MBC3_RAM_Battery, MBC5_RAM_Battery,
-		MBC_Rumble_RAM_Battery, MBC7_Sensor_Rumble_RAM_Battery, HuC1_RAM_Battery},
-	Rumble: {MBC5_Rumble, MBC5_Rumble_RAM, MBC_Rumble_RAM_Battery, MBC7_Sensor_Rumble_RAM_Battery},
-	Sensor: {MBC7_Sensor_Rumble_RAM_Battery},
-}
-
-// Capabilities returns the CartridgeCapabilities for this cartridge type.
-func (ct MBCType) Capabilities() Capabilities {
-	var caps Capabilities
-
-	if slices.Contains(capMap[RAM], ct) {
-		caps |= RAM
-	}
-	if slices.Contains(capMap[Battery], ct) {
-		caps |= Battery
-	}
-	if slices.Contains(capMap[Rumble], ct) {
-		caps |= Rumble
-	}
-	if slices.Contains(capMap[Sensor], ct) {
-		caps |= Sensor
-	}
-
-	return caps
 }
