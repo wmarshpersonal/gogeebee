@@ -12,9 +12,8 @@ type MBC1Mapper struct {
 	Registers [4]uint8
 	RAM       []byte
 
-	ROMSize    ROMSize
-	RAMSize    RAMSize
-	RAMEnabled bool
+	ROMSize ROMSize
+	RAMSize RAMSize
 }
 
 type MBC1Mode uint8
@@ -86,7 +85,7 @@ func (mbc *MBC1Mapper) Read(addr uint16) uint8 {
 			mbc.Registers[MBC1ROMBank],
 		)]
 	} else { // ram
-		if mbc.RAMSize.Banks() == 0 {
+		if mbc.RAMSize.Banks() == 0 || mbc.Registers[MBC1RAMEnable]&0xF != 0xA {
 			return 0xFF
 		}
 		return mbc.RAM[mbc1RAMAddress(addr, mbc.Mode(), mbc.RAMSize.Banks(), mbc.Registers[MBC1RAMROMUpper])]
@@ -94,12 +93,17 @@ func (mbc *MBC1Mapper) Read(addr uint16) uint8 {
 }
 
 func (mbc *MBC1Mapper) Write(addr uint16, v uint8) {
-	if addr <= 0x7FFF { // rom bank switch
+	if addr <= 0x7FFF { // registers
 		reg := MBC1Register(((addr >> 12) & 0xF) >> 1)
-		if reg == MBC1ROMBank {
+		switch reg {
+		case MBC1ModeSelect:
+			v = v & 1
+		case MBC1ROMBank:
 			v &= 0x1F
-		} else if reg == MBC1RAMROMUpper {
-			v &= 3
+		case MBC1RAMROMUpper:
+			reg &= 3
+		case MBC1RAMEnable:
+			v &= 0xF
 		}
 		mbc.Registers[reg] = v
 	} else { // ram

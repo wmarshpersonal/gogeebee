@@ -7,6 +7,202 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestMBC1Mapper_Bank0(t *testing.T) {
+	type params struct {
+		romSize              ROMSize
+		write4000, write6000 uint8
+	}
+	tests := []struct {
+		name string
+		params
+		wantedBank uint8
+	}{
+		{"128KB 00, simple banking, bank 00",
+			params{ROM_128KB, 0b00, 0},
+			0x00},
+		{"128KB 11, simple banking, bank 00",
+			params{ROM_128KB, 0b11, 0},
+			0x00},
+		{"2MB 00, simple banking, bank 00",
+			params{ROM_2MB, 0b00, 0},
+			0x00},
+		{"2MB 11, simple banking, bank 00",
+			params{ROM_2MB, 0b11, 0},
+			0x00},
+		{"128KB 00, advanced banking, bank 00",
+			params{ROM_128KB, 0b00, 1},
+			0x00},
+		{"128KB 11, advanced banking, bank 00",
+			params{ROM_128KB, 0b11, 1},
+			0x00},
+		{"2MB 00, advanced banking, bank 00",
+			params{ROM_2MB, 0b00, 1},
+			0x00},
+		{"2MB 11, advanced banking, bank 60",
+			params{ROM_2MB, 0b11, 1},
+			0x60},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var mbc1 *MBC1Mapper = &MBC1Mapper{
+				data:      genROM(t, test.romSize),
+				Registers: [4]uint8{},
+				ROMSize:   test.romSize,
+			}
+			mbc1.Write(0x4000, test.write4000)
+			mbc1.Write(0x6000, test.write6000)
+			for addr := uint16(0); addr < 0x4000; addr += 2 {
+				bankv := mbc1.Read(addr)
+				addrv := mbc1.Read(addr + 1)
+				if !assert.EqualValues(t, test.wantedBank, bankv) {
+					return
+				}
+				if !assert.EqualValues(t, addr&0xFF, addrv) {
+					return
+				}
+			}
+		})
+	}
+}
+
+func TestMBC1Mapper_Bank1(t *testing.T) {
+	type params struct {
+		romSize              ROMSize
+		write2000, write4000 uint8
+	}
+	type test struct {
+		name string
+		params
+		wantedBank uint8
+	}
+	tests := []test{
+		{"128KB 00, bank 01",
+			params{ROM_128KB, 0b00000, 0b00},
+			01},
+		{"128KB 11, bank 01",
+			params{ROM_128KB, 0b00000, 0b11},
+			01},
+		{"128KB 00, bank 00",
+			params{ROM_128KB, 0b10000, 0b00},
+			00},
+	}
+
+	// append all 2MB banks to tests
+	for bank := 0; bank < 256; bank++ {
+		expected := uint8(bank % 128)
+		if bank&0b11111 == 0 {
+			expected |= 1
+		}
+		tests = append(tests, test{fmt.Sprintf("2MB bank %03d -> %03d", bank, expected),
+			params{ROM_2MB, uint8(bank) & 0b11111, uint8(bank>>5) & 0b11},
+			expected})
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var mbc1 *MBC1Mapper = &MBC1Mapper{
+				data:      genROM(t, test.romSize),
+				Registers: [4]uint8{},
+				ROMSize:   test.romSize,
+			}
+			mbc1.Write(0x2000, test.write2000)
+			mbc1.Write(0x4000, test.write4000)
+			for addr := uint16(0x4000); addr < 0x7FFF; addr += 2 {
+				bankv := mbc1.Read(addr)
+				addrv := mbc1.Read(addr + 1)
+				if !assert.EqualValues(t, test.wantedBank, bankv) {
+					return
+				}
+				if !assert.EqualValues(t, addr&0xFF, addrv) {
+					return
+				}
+			}
+		})
+	}
+}
+
+func TestMBC1Mapper_RAM(t *testing.T) {
+	type params struct {
+		ramSize                         RAMSize
+		write0000, write4000, write6000 uint8
+	}
+	type test struct {
+		name string
+		params
+		wantedBank int16
+	}
+
+	tests := []test{
+		{"A no ram", params{RAM_None, 0xA, 0b00, 0}, -1},
+		{"0 no ram", params{RAM_None, 0x0, 0b00, 0}, -1},
+		{"0 8KB bank 00 mode 0", params{RAM_8KB, 0x0, 0b00, 0}, -1},
+		{"0 8KB bank 01 mode 0", params{RAM_8KB, 0x0, 0b01, 0}, -1},
+		{"0 8KB bank 10 mode 0", params{RAM_8KB, 0x0, 0b10, 0}, -1},
+		{"0 8KB bank 11 mode 0", params{RAM_8KB, 0x0, 0b11, 0}, -1},
+		{"0 8KB bank 00 mode 1", params{RAM_8KB, 0x0, 0b00, 1}, -1},
+		{"0 8KB bank 01 mode 1", params{RAM_8KB, 0x0, 0b01, 1}, -1},
+		{"0 8KB bank 10 mode 1", params{RAM_8KB, 0x0, 0b10, 1}, -1},
+		{"0 8KB bank 11 mode 1", params{RAM_8KB, 0x0, 0b11, 1}, -1},
+		{"A 8KB bank 00 mode 0", params{RAM_8KB, 0xA, 0b00, 0}, 0b00},
+		{"A 8KB bank 01 mode 0", params{RAM_8KB, 0xA, 0b01, 0}, 0b00},
+		{"A 8KB bank 10 mode 0", params{RAM_8KB, 0xA, 0b10, 0}, 0b00},
+		{"A 8KB bank 11 mode 0", params{RAM_8KB, 0xA, 0b11, 0}, 0b00},
+		{"A 8KB bank 00 mode 1", params{RAM_8KB, 0xA, 0b00, 1}, 0b00},
+		{"A 8KB bank 01 mode 1", params{RAM_8KB, 0xA, 0b01, 1}, 0b00},
+		{"A 8KB bank 10 mode 1", params{RAM_8KB, 0xA, 0b10, 1}, 0b00},
+		{"A 8KB bank 11 mode 1", params{RAM_8KB, 0xA, 0b11, 1}, 0b00},
+		{"0 32KB bank 00 mode 0", params{RAM_32KB, 0x0, 0b00, 0}, -1},
+		{"0 32KB bank 01 mode 0", params{RAM_32KB, 0x0, 0b01, 0}, -1},
+		{"0 32KB bank 10 mode 0", params{RAM_32KB, 0x0, 0b10, 0}, -1},
+		{"0 32KB bank 11 mode 0", params{RAM_32KB, 0x0, 0b11, 0}, -1},
+		{"0 32KB bank 00 mode 1", params{RAM_32KB, 0x0, 0b00, 1}, -1},
+		{"0 32KB bank 01 mode 1", params{RAM_32KB, 0x0, 0b01, 1}, -1},
+		{"0 32KB bank 10 mode 1", params{RAM_32KB, 0x0, 0b10, 1}, -1},
+		{"0 32KB bank 11 mode 1", params{RAM_32KB, 0x0, 0b11, 1}, -1},
+		{"A 32KB bank 00 mode 0", params{RAM_32KB, 0xA, 0b00, 0}, 0b00},
+		{"A 32KB bank 01 mode 0", params{RAM_32KB, 0xA, 0b01, 0}, 0b00},
+		{"A 32KB bank 10 mode 0", params{RAM_32KB, 0xA, 0b10, 0}, 0b00},
+		{"A 32KB bank 11 mode 0", params{RAM_32KB, 0xA, 0b11, 0}, 0b00},
+		{"A 32KB bank 00 mode 1", params{RAM_32KB, 0xA, 0b00, 1}, 0b00},
+		{"A 32KB bank 01 mode 1", params{RAM_32KB, 0xA, 0b01, 1}, 0b01},
+		{"A 32KB bank 10 mode 1", params{RAM_32KB, 0xA, 0b10, 1}, 0b10},
+		{"A 32KB bank 11 mode 1", params{RAM_32KB, 0xA, 0b11, 1}, 0b11},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var mbc1 *MBC1Mapper = &MBC1Mapper{
+				RAM:     genRAM(t, test.ramSize),
+				RAMSize: test.ramSize,
+			}
+			mbc1.Write(0x0000, test.write0000)
+			mbc1.Write(0x4000, test.write4000)
+			mbc1.Write(0x6000, test.write6000)
+			for addr := uint16(0xA000); addr < 0xBFFF; addr += 2 {
+				hi, lo := mbc1.Read(addr), mbc1.Read(addr+1)
+				if test.wantedBank < 0 {
+					if !assert.EqualValues(t, 0xFF, lo) {
+						return
+					}
+					if !assert.EqualValues(t, 0xFF, hi) {
+						return
+					}
+				} else if test.wantedBank <= 0xFF {
+					if !assert.EqualValues(t, uint8(test.wantedBank), hi) {
+						return
+					}
+					if !assert.EqualValues(t, uint8(addr&0xFF), lo) {
+						return
+					}
+				} else {
+					panic(test.wantedBank)
+				}
+			}
+		})
+	}
+}
+
 func Test_mbc1ROM0ReadAddress_mode0(t *testing.T) {
 	for bankHi := uint8(0); bankHi <= 3; bankHi++ {
 		t.Run(fmt.Sprintf("bankHi=%02b", bankHi), func(t *testing.T) {
@@ -188,4 +384,26 @@ func Test_mbc1RAMReadAddress_mode1(t *testing.T) {
 			}
 		})
 	}
+}
+
+func genROM(t *testing.T, romSize ROMSize) (rom []byte) {
+	t.Helper()
+	for i := 0; i < romSize.Banks(); i++ {
+		for j := 0; j < 0x4000; j += 2 {
+			rom = append(rom, byte(i))
+			rom = append(rom, byte(j))
+		}
+	}
+	return
+}
+
+func genRAM(t *testing.T, ramSize RAMSize) (ram []byte) {
+	t.Helper()
+	for i := 0; i < ramSize.Banks(); i++ {
+		for j := 0; j < 0x2000; j += 2 {
+			ram = append(ram, byte(i))
+			ram = append(ram, byte(j))
+		}
+	}
+	return
 }
