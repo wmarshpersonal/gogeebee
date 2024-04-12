@@ -49,7 +49,7 @@ func (apu *APU) StepT(divValue uint8) (sample uint8) {
 				// period params
 				apu.registers[NR13], apu.registers[NR14],
 			)
-			apu.Pulse1.Sample = apu.Pulse1.Unit.Gen()
+			apu.Pulse1.Sample = apu.Pulse1.Unit.Gen(apu.registers[NR11])
 		}
 	} else {
 		apu.Pulse1.Reset()
@@ -61,7 +61,7 @@ func (apu *APU) StepT(divValue uint8) (sample uint8) {
 				// period params
 				apu.registers[NR23], apu.registers[NR24],
 			)
-			apu.Pulse2.Sample = apu.Pulse2.Unit.Gen()
+			apu.Pulse2.Sample = apu.Pulse2.Unit.Gen(apu.registers[NR21])
 		}
 	} else {
 		apu.Pulse2.Reset()
