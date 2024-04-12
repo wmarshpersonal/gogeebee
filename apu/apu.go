@@ -170,13 +170,13 @@ func (apu *APU) WriteRegister(register Register, value uint8) {
 
 	switch register {
 	case NR11: // pulse 1 length counter
-		apu.Pulse1.LengthCounter = 63 - value
+		apu.Pulse1.LengthCounter = value & 63
 	case NR21: // pulse 2 length counter
-		apu.Pulse2.LengthCounter = 63 - value
+		apu.Pulse2.LengthCounter = value & 63
 	case NR31: // wave length counter
-		apu.Wave.LengthCounter = 255 - value
+		apu.Wave.LengthCounter = value
 	case NR41: // noise length counter
-		apu.Noise.LengthCounter = 63 - value
+		apu.Noise.LengthCounter = value & 63
 	case NR14: // pulse 1 trigger & params
 		if value&0x80 != 0 {
 			apu.Pulse1.Mixer = newEnvelope(apu.registers[NR12])
@@ -192,6 +192,9 @@ func (apu *APU) WriteRegister(register Register, value uint8) {
 					apu.Pulse1.Enabled = false
 				}
 			}
+			if apu.registers[NR12]&0xF8 == 0 {
+				apu.Pulse1.Enabled = false
+			}
 		}
 	case NR24: // pulse 2 trigger & params
 		if value&0x80 != 0 {
@@ -202,6 +205,9 @@ func (apu *APU) WriteRegister(register Register, value uint8) {
 				apu.registers[NR23], apu.registers[NR24],
 			)
 		}
+		if apu.registers[NR22]&0xF8 == 0 {
+			apu.Pulse2.Enabled = false
+		}
 	case NR34: // wave trigger & params
 		if value&0x80 != 0 {
 			apu.Wave.Trigger(255)
@@ -210,12 +216,18 @@ func (apu *APU) WriteRegister(register Register, value uint8) {
 				apu.registers[NR33], apu.registers[NR34],
 			)
 		}
+		if apu.registers[NR30]&0x80 == 0 {
+			apu.Wave.Enabled = false
+		}
 	case NR44: // noise trigger & params
 		if value&0x80 != 0 {
 			apu.Noise.Mixer = newEnvelope(apu.registers[NR42])
 			apu.Noise.Trigger(63)
 			// period params
 			apu.Noise.Clock.Reset(apu.registers[NR43])
+		}
+		if apu.registers[NR42]&0xF8 == 0 {
+			apu.Noise.Enabled = false
 		}
 	}
 }

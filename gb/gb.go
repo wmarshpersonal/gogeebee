@@ -189,6 +189,8 @@ func (gb *GB) ReadIO(port uint8) (value uint8) {
 		value = gb.APU.ReadRegister(apu.NR13)
 	case 0x14: // NR14
 		value = gb.APU.ReadRegister(apu.NR14)
+	case 0x15: // NR20
+		value = 0xFF
 	case 0x16: // NR21
 		value = gb.APU.ReadRegister(apu.NR21)
 	case 0x17: // NR22
@@ -207,6 +209,8 @@ func (gb *GB) ReadIO(port uint8) (value uint8) {
 		value = gb.APU.ReadRegister(apu.NR33)
 	case 0x1E: // NR34
 		value = gb.APU.ReadRegister(apu.NR34)
+	case 0x1F: // NR40
+		value = 0xFF
 	case 0x20: // NR41
 		value = gb.APU.ReadRegister(apu.NR41)
 	case 0x21: // NR42
@@ -221,6 +225,8 @@ func (gb *GB) ReadIO(port uint8) (value uint8) {
 		value = gb.APU.ReadRegister(apu.NR51)
 	case 0x26: // NR52
 		value = gb.APU.ReadRegister(apu.NR52)
+	case 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F: // empty APU registers
+		value = 0xFF
 	case 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
 		0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F: // Wave RAM
 		value = gb.APU.ReadWave(int(port) & 0xF)

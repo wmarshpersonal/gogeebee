@@ -14,6 +14,18 @@
       ]
     },
     {
+      "name": "dmg sound",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/gb-test-roms-master/dmg_sound/rom_singles/01-registers.gb"
+      ]
+    },
+   
+    {
       "name": "Alfred Chicken",
       "type": "go",
       "request": "launch",
