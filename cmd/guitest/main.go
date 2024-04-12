@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
+
 	"github.com/wmarshpersonal/gogeebee/cartridge"
 )
 

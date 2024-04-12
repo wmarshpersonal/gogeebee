@@ -5,11 +5,9 @@ import (
 	"math"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ebitengine/oto/v3"
-	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/wmarshpersonal/gogeebee/cartridge"
 	"github.com/wmarshpersonal/gogeebee/gb"
@@ -65,40 +63,30 @@ func initGame(romData []byte) (*Game, error) {
 	p.Play()
 	// defer p.Close()
 
-	var fa atomic.Value
-	fa.Store(440.0)
-
 	go func() {
-		for {
-			f := 440.
-			if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-				f = 520.
-			}
-			fa.Store(f)
-			runtime.Gosched()
-		}
-	}()
-
-	go func() {
-		var phase float64
-		var samples []byte
-		var frame ppu.PixelBuffer
+		var (
+			apuSamples []uint8
+			samples    []byte
+			frame      ppu.PixelBuffer
+		)
 		for {
 			g.gb.ProcessJoypad(ReadButtons(), ReadDirections())
-			drawn := g.gb.RunFor(gb.TCyclesPerSecond*(bufferSize/8)/sampleRate, &frame)
+			drawn := g.gb.RunFor(gb.TCyclesPerSecond*(bufferSize/8)/sampleRate, &frame, &apuSamples)
 			var dropped bool
 			if drawn > 0 {
 				dropped = g.sync.addFrame(frame)
 			}
 			samples = samples[:0]
 			const samplesPerFrame = bufferSize / 4 / chs
-			f := fa.Load().(float64)
-			for i := 0; i < samplesPerFrame; i++ {
-				phase += f * 2 * math.Pi / sampleRate
-				bits := math.Float32bits(0.3 * float32(math.Sin(phase)))
+			var inc = float64(len(apuSamples)) / samplesPerFrame
+			var i int
+			for i = 0; i < samplesPerFrame; i++ {
+				sample := (float32(apuSamples[int(float64(i)*inc)])/0xF - 0.5)
+				bits := math.Float32bits(sample)
 				samples = append(samples, byte(bits), byte(bits>>8), byte(bits>>16), byte(bits>>24))
 				samples = append(samples, byte(bits), byte(bits>>8), byte(bits>>16), byte(bits>>24))
 			}
+			apuSamples = apuSamples[:0]
 			g.sync.addSamples(samples)
 			if dropped {
 				slog.Debug("dropped frame")

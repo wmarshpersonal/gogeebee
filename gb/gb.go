@@ -63,10 +63,11 @@ func (gb *GB) ProcessJoypad(btns JoypadButtons, dirs JoypadDirections) {
 }
 
 // RunFor executes the system for a number of t-cycles.
-func (gb *GB) RunFor(cycles int, frame *ppu.PixelBuffer) (drawn int) {
+func (gb *GB) RunFor(cycles int, frame *ppu.PixelBuffer, audio *[]uint8) (drawn int) {
 	for range cycles {
 		lastMode := gb.PPU.Mode()
-		gb.stepHardware()
+		sample := gb.stepHardware()
+		*audio = append(*audio, sample)
 		// TODO: handle frame clearing
 		if gb.PPU.Enabled() && gb.PPU.Mode() == ppu.VBlank && lastMode != ppu.VBlank {
 			drawn++
@@ -78,7 +79,7 @@ func (gb *GB) RunFor(cycles int, frame *ppu.PixelBuffer) (drawn int) {
 }
 
 // run for one t-cycle
-func (gb *GB) stepHardware() {
+func (gb *GB) stepHardware() (apuSample uint8) {
 	// ppu
 	prevVblankLine := gb.PPU.VBLANKLine
 	prevStatLine := gb.PPU.STATLine
@@ -99,7 +100,7 @@ func (gb *GB) stepHardware() {
 	}
 
 	// apu
-	gb.APU.StepT(gb.Timer.Read(DIV))
+	apuSample = gb.APU.StepT(gb.Timer.Read(DIV))
 
 	// M-cycled components (CPU, DMA)
 	if gb.cycles%4 == 0 {
@@ -126,6 +127,8 @@ func (gb *GB) stepHardware() {
 	}
 
 	gb.cycles++
+
+	return
 }
 
 // Read reads a byte from the system bus.

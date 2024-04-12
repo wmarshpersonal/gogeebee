@@ -36,6 +36,28 @@
       ]
     },
     {
+      "name": "Super Mario Land",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Super Mario Land (World).zip"
+      ]
+    },
+    {
+      "name": "Tetris",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Tetris (World) (Rev A).zip"
+      ]
+    },
+    {
       "name": "Wario Land",
       "type": "go",
       "request": "launch",
@@ -88,6 +110,50 @@
       "program": "${workspaceFolder}/cmd/guitest/",
       "args": [
         "/Users/wayne/ROMs/Game Boy/Yu-Gi-Oh! Duel Monsters (Japan) (SGB Enhanced).zip"
+      ]
+    },
+    {
+      "name": "Zelda",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Legend of Zelda, The - Link's Awakening (USA, Europe).zip"
+      ]
+    },
+    {
+      "name": "Krusty's Fun House",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Krusty's Fun House (USA, Europe).zip"
+      ]
+    },
+    {
+      "name": "Bart Simpson's Escape From Camp Deadly",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Bart Simpson's Escape from Camp Deadly (USA, Europe).zip"
+      ]
+    },
+    {
+      "name": "Robocop",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/RoboCop (USA).zip"
       ]
     },
   ],
