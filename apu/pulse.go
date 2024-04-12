@@ -1,10 +1,10 @@
 package apu
 
 var pulseWaveforms = [4]uint8{
-	0b11111110,
-	0b01111110,
-	0b01111000,
+	0b00000001,
 	0b10000001,
+	0b10000111,
+	0b01111110,
 }
 
 type PulseClock uint32
@@ -24,6 +24,7 @@ func (u *PulseUnit) Gen(nrx1 uint8) (sample uint8) {
 
 type Sweep struct {
 	Enabled      bool
+	SweepPeriod  uint8
 	Counter      uint8
 	ShadowPeriod uint32
 	Subtract     bool
@@ -32,15 +33,21 @@ type Sweep struct {
 
 func newSweep(nr10, nr13, nr14 uint8) Sweep {
 	sweepPeriod, shift := (nr10>>4)&7, nr10&7
-	s := Sweep{
+	return Sweep{
 		Enabled:      sweepPeriod != 0 || shift != 0,
-		Counter:      sweepPeriod,
+		SweepPeriod:  sweepPeriod,
+		Counter:      reloadSweepCounter(sweepPeriod),
 		ShadowPeriod: (uint32(nr14&7) << 8) | uint32(nr13),
 		Shift:        shift,
 		Subtract:     nr10&8 != 0,
 	}
+}
 
-	return s
+func reloadSweepCounter(sweepPeriod uint8) uint8 {
+	if sweepPeriod == 0 {
+		return 8
+	}
+	return sweepPeriod
 }
 
 func (s *Sweep) Tick() bool {

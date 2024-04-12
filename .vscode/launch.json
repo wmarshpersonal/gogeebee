@@ -156,5 +156,28 @@
         "/Users/wayne/ROMs/Game Boy/RoboCop (USA).zip"
       ]
     },
+    {
+      "name": "Addams Family",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Addams Family, The (USA).zip"
+      ]
+    },
+    {
+      "name": "Bubble Bobble",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "buildFlags": "-tags 'dev'",
+      "program": "${workspaceFolder}/cmd/guitest/",
+      "args": [
+        "/Users/wayne/ROMs/Game Boy/Bubble Bobble (USA, Europe).zip"
+      ]
+    },
+    
   ],
 }

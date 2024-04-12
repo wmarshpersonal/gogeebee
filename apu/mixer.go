@@ -19,33 +19,34 @@ func (ShiftMixer) Mix(sample, nr32 uint8) uint8 {
 type Envelope struct {
 	Level   uint8
 	Counter uint8
+	Pace    uint8
+	Up      bool
 }
 
-func (e *Envelope) Trigger(nrx2 uint8) {
-	e.Counter = nrx2 & 7
-	e.Level = nrx2 >> 4
+func newEnvelope(nrx2 uint8) Envelope {
+	return Envelope{
+		Level:   nrx2 >> 4,
+		Counter: nrx2 & 7,
+		Pace:    nrx2 & 7,
+		Up:      nrx2&8 != 0,
+	}
 }
 
-func (e *Envelope) Tick(nrx2 uint8) {
-	var (
-		pace = nrx2 & 7
-		up   = nrx2&8 != 0
-	)
-
-	if pace == 0 || up && e.Level == 15 || !up && e.Level == 0 {
+func (e *Envelope) Tick() {
+	if e.Pace == 0 || e.Up && e.Level == 15 || !e.Up && e.Level == 0 {
 		return
 	}
 
 	e.Counter--
 	if e.Counter == 0 {
-		e.Counter = pace
-		if up {
+		e.Counter = e.Pace
+		if e.Up {
 			if e.Level < 15 {
 				e.Level++
 			}
 		}
 
-		if !up && e.Level > 0 {
+		if !e.Up && e.Level > 0 {
 			if e.Level > 0 {
 				e.Level--
 			}

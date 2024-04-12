@@ -29,24 +29,26 @@ func (apu *APU) StepT(divValue uint8) (sample uint8) {
 			apu.Noise.TickLength(apu.registers[NR44]&0x40 != 0)
 		}
 		if apu.divAPUCounter%8 == 0 {
-			apu.Pulse1.Mixer.Tick(apu.registers[NR12])
-			apu.Pulse2.Mixer.Tick(apu.registers[NR22])
-			apu.Noise.Mixer.Tick(apu.registers[NR42])
+			apu.Pulse1.Mixer.Tick()
+			apu.Pulse2.Mixer.Tick()
+			apu.Noise.Mixer.Tick()
 		}
 		if apu.divAPUCounter%8 == 2 || apu.divAPUCounter%8 == 6 {
 			if apu.Sweep.Tick() {
-				apu.Sweep.Counter = (apu.registers[NR10] >> 4) & 7
-				if apu.Sweep.Enabled && apu.Sweep.Counter != 0 {
-					newPeriod, overflow := apu.Sweep.Calculate()
-					if overflow {
-						apu.Pulse1.Enabled = false
-					} else if apu.Sweep.Shift != 0 {
-						apu.Sweep.ShadowPeriod = newPeriod
-						_, overflow = apu.Sweep.Calculate()
-						apu.registers[NR13] = uint8(newPeriod & 0xFF)
-						apu.registers[NR14] = apu.registers[NR14]&0xF8 | uint8(newPeriod>>8)
+				if apu.Pulse1.Enabled {
+					apu.Sweep.Counter = reloadSweepCounter(apu.Sweep.SweepPeriod)
+					if apu.Sweep.Enabled && apu.Sweep.SweepPeriod != 0 {
+						newPeriod, overflow := apu.Sweep.Calculate()
 						if overflow {
 							apu.Pulse1.Enabled = false
+						} else if apu.Sweep.Shift != 0 {
+							apu.Sweep.ShadowPeriod = newPeriod
+							apu.registers[NR13] = uint8(newPeriod & 0xFF)
+							apu.registers[NR14] = apu.registers[NR14]&0xF8 | uint8(newPeriod>>8)
+							_, overflow = apu.Sweep.Calculate()
+							if overflow {
+								apu.Pulse1.Enabled = false
+							}
 						}
 					}
 				}
@@ -156,7 +158,7 @@ func (apu *APU) WriteRegister(register Register, value uint8) {
 		apu.Noise.LengthCounter = 63 - value
 	case NR14: // pulse 1 trigger & params
 		if value&0x80 != 0 {
-			apu.Pulse1.Mixer.Trigger(apu.registers[NR12])
+			apu.Pulse1.Mixer = newEnvelope(apu.registers[NR12])
 			apu.Pulse1.Trigger(63)
 			apu.Pulse1.Clock.Reset(
 				// period params
@@ -172,7 +174,7 @@ func (apu *APU) WriteRegister(register Register, value uint8) {
 		}
 	case NR24: // pulse 2 trigger & params
 		if value&0x80 != 0 {
-			apu.Pulse2.Mixer.Trigger(apu.registers[NR22])
+			apu.Pulse2.Mixer = newEnvelope(apu.registers[NR22])
 			apu.Pulse2.Trigger(63)
 			apu.Pulse2.Clock.Reset(
 				// period params
@@ -189,7 +191,7 @@ func (apu *APU) WriteRegister(register Register, value uint8) {
 		}
 	case NR44: // noise trigger & params
 		if value&0x80 != 0 {
-			apu.Noise.Mixer.Trigger(apu.registers[NR42])
+			apu.Noise.Mixer = newEnvelope(apu.registers[NR42])
 			apu.Noise.Trigger(63)
 			// period params
 			apu.Noise.Clock.Reset(apu.registers[NR43])
