@@ -21,3 +21,44 @@ func (u *PulseUnit) Gen(nrx1 uint8) (sample uint8) {
 	*u++
 	return
 }
+
+type Sweep struct {
+	Enabled      bool
+	Counter      uint8
+	ShadowPeriod uint32
+	Subtract     bool
+	Shift        uint8
+}
+
+func newSweep(nr10, nr13, nr14 uint8) Sweep {
+	sweepPeriod, shift := (nr10>>4)&7, nr10&7
+	s := Sweep{
+		Enabled:      sweepPeriod != 0 || shift != 0,
+		Counter:      sweepPeriod,
+		ShadowPeriod: (uint32(nr14&7) << 8) | uint32(nr13),
+		Shift:        shift,
+		Subtract:     nr10&8 != 0,
+	}
+
+	return s
+}
+
+func (s *Sweep) Tick() bool {
+	if !s.Enabled {
+		return false
+	}
+	s.Counter--
+	return s.Counter == 0
+}
+
+func (s *Sweep) Calculate() (newPeriod uint32, overflow bool) {
+	change := s.ShadowPeriod >> s.Shift
+	if s.Subtract {
+		newPeriod = s.ShadowPeriod - change
+	} else {
+		newPeriod = s.ShadowPeriod + change
+		overflow = newPeriod >= 2048
+	}
+
+	return
+}

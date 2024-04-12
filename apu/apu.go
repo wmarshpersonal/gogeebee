@@ -9,6 +9,7 @@ type APU struct {
 	divAPUCounter uint
 	lastDivValue  uint8
 
+	Sweep  Sweep
 	Pulse1 Channel[PulseClock, PulseUnit, Envelope]
 	Pulse2 Channel[PulseClock, PulseUnit, Envelope]
 	Wave   Channel[WaveClock, WaveUnit, ShiftMixer]
@@ -18,7 +19,6 @@ type APU struct {
 func NewDMG0APU() *APU {
 	return &APU{}
 }
-
 func (apu *APU) StepT(divValue uint8) (sample uint8) {
 	if apu.lastDivValue&0x10 != 0 && divValue&0x10 == 0 { // DIV-APU tick
 		apu.divAPUCounter++
@@ -32,6 +32,25 @@ func (apu *APU) StepT(divValue uint8) (sample uint8) {
 			apu.Pulse1.Mixer.Tick(apu.registers[NR12])
 			apu.Pulse2.Mixer.Tick(apu.registers[NR22])
 			apu.Noise.Mixer.Tick(apu.registers[NR42])
+		}
+		if apu.divAPUCounter%8 == 2 || apu.divAPUCounter%8 == 6 {
+			if apu.Sweep.Tick() {
+				apu.Sweep.Counter = (apu.registers[NR10] >> 4) & 7
+				if apu.Sweep.Enabled && apu.Sweep.Counter != 0 {
+					newPeriod, overflow := apu.Sweep.Calculate()
+					if overflow {
+						apu.Pulse1.Enabled = false
+					} else if apu.Sweep.Shift != 0 {
+						apu.Sweep.ShadowPeriod = newPeriod
+						_, overflow = apu.Sweep.Calculate()
+						apu.registers[NR13] = uint8(newPeriod & 0xFF)
+						apu.registers[NR14] = apu.registers[NR14]&0xF8 | uint8(newPeriod>>8)
+						if overflow {
+							apu.Pulse1.Enabled = false
+						}
+					}
+				}
+			}
 		}
 	}
 	apu.lastDivValue = divValue
@@ -139,17 +158,22 @@ func (apu *APU) WriteRegister(register Register, value uint8) {
 		if value&0x80 != 0 {
 			apu.Pulse1.Mixer.Trigger(apu.registers[NR12])
 			apu.Pulse1.Trigger(63)
-			// period params
 			apu.Pulse1.Clock.Reset(
 				// period params
 				apu.registers[NR13], apu.registers[NR14],
 			)
+			apu.Sweep = newSweep(apu.registers[NR10], apu.registers[NR13], apu.registers[NR14])
+			if apu.Sweep.Shift != 0 {
+				_, overflow := apu.Sweep.Calculate()
+				if overflow {
+					apu.Pulse1.Enabled = false
+				}
+			}
 		}
 	case NR24: // pulse 2 trigger & params
 		if value&0x80 != 0 {
 			apu.Pulse2.Mixer.Trigger(apu.registers[NR22])
 			apu.Pulse2.Trigger(63)
-			// period params
 			apu.Pulse2.Clock.Reset(
 				// period params
 				apu.registers[NR23], apu.registers[NR24],
