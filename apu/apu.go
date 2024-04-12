@@ -135,13 +135,34 @@ func (apu *APU) StepT(divValue uint8) (sample uint8) {
 	sample += waveSample
 	sample += noiseSample
 
+	sampleL := float32(apu.registers[NR50]&7+1) / 8. * float32(sample)
+	sampleR := float32((apu.registers[NR50]>>4)&7+1) / 8. * float32(sample)
+	sample = uint8((sampleL + sampleR) / 2)
+
 	apu.cycle++
 
 	return
 }
 
 func (apu *APU) ReadRegister(register Register) uint8 {
-	return apu.registers.read(register)
+	value := apu.registers.read(register)
+
+	if register == NR52 {
+		if apu.Pulse1.Enabled {
+			value |= 1
+		}
+		if apu.Pulse2.Enabled {
+			value |= 2
+		}
+		if apu.Wave.Enabled {
+			value |= 4
+		}
+		if apu.Noise.Enabled {
+			value |= 8
+		}
+	}
+
+	return value
 }
 
 func (apu *APU) WriteRegister(register Register, value uint8) {

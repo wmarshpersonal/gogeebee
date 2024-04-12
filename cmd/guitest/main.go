@@ -13,7 +13,7 @@ import (
 
 const (
 	width, height = 160, 144
-	sampleRate    = 48000
+	sampleRate    = 96000
 )
 
 func main() {
