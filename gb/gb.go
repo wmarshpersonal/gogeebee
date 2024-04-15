@@ -68,7 +68,7 @@ func (gb *GB) RunFor(cycles int, frame *ppu.PixelBuffer, audio *[]uint8) (drawn 
 		lastMode := gb.PPU.Mode()
 		sample := gb.stepHardware()
 		*audio = append(*audio, sample)
-		// TODO: handle frame clearing
+		// ppu is entering vblank?
 		if gb.PPU.Enabled() && gb.PPU.Mode() == ppu.VBlank && lastMode != ppu.VBlank {
 			drawn++
 			copy(frame[:], gb.lcd[:])
