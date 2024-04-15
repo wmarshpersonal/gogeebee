@@ -156,7 +156,7 @@ func (gb *GB) Read(address uint16) (value uint8) {
 		value = gb.CPU.IE
 	default:
 		slog.LogAttrs(context.Background(),
-			slog.LevelWarn,
+			slog.LevelDebug,
 			"unhandled read",
 			slog.String("address", fmt.Sprintf("$%04X", address)),
 		)
@@ -255,11 +255,11 @@ func (gb *GB) ReadIO(port uint8) (value uint8) {
 	case 0x4B: // WX
 		value = gb.PPU.ReadRegister(ppu.WX)
 	default:
-		// slog.LogAttrs(context.Background(),
-		// 	slog.LevelWarn,
-		// 	"unhandled io read",
-		// 	slog.String("address", fmt.Sprintf("$FF%02X", port)),
-		// )
+		slog.LogAttrs(context.Background(),
+			slog.LevelDebug,
+			"unhandled io read",
+			slog.String("address", fmt.Sprintf("$FF%02X", port)),
+		)
 	}
 
 	return
@@ -290,7 +290,7 @@ func (gb *GB) Write(address uint16, value uint8) {
 		gb.CPU.IE = (gb.CPU.IE & 0xE0) | (value & 0x1F)
 	default:
 		slog.LogAttrs(context.Background(),
-			slog.LevelWarn,
+			slog.LevelDebug,
 			"unhandled write",
 			slog.String("address", fmt.Sprintf("$%04X", address)),
 		)
@@ -381,10 +381,10 @@ func (gb *GB) WriteIO(port, value uint8) {
 	case 0x4B: // WX
 		gb.PPU.WriteRegister(ppu.WX, value)
 	default:
-		// slog.LogAttrs(context.Background(),
-		// 	slog.LevelWarn,
-		// 	"unhandled io write",
-		// 	slog.String("address", fmt.Sprintf("$FF%02X", port)),
-		// )
+		slog.LogAttrs(context.Background(),
+			slog.LevelDebug,
+			"unhandled io write",
+			slog.String("address", fmt.Sprintf("$FF%02X", port)),
+		)
 	}
 }
