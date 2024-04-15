@@ -4,11 +4,11 @@ import "golang.org/x/exp/constraints"
 
 type Channel[TClock ~uint32, TUnit constraints.Unsigned, TMixer ShiftMixer | Envelope] struct {
 	Clock         TClock
+	Unit          TUnit
+	Mixer         TMixer
 	Enabled       bool
 	LengthCounter uint8
-	Unit          TUnit
 	Sample        uint8
-	Mixer         TMixer
 }
 
 func (ch *Channel[TClock, TUnit, TMixer]) Tick() bool {
