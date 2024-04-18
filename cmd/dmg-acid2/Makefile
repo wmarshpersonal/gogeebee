@@ -1,11 +1,12 @@
 .PHONY: clean all
 
 SRC := $(wildcard ../../**/*.go) main.go
+TARGETS := result.png result.txt result-diff.png
 
-all: result.png result.txt result-diff.png
+all: $(TARGETS)
 
 clean:
-	rm -rf .build results
+	rm -rf .build $(TARGETS)
 
 result.txt: .build/reference-dmg.png result.png
 	-mkdir -p results
