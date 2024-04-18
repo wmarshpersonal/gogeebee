@@ -1,0 +1,3 @@
+[submodule "cmd/mealybug-tearoom-tests/mealybug-tearoom-tests"]
+	path = cmd/mealybug-tearoom-tests/mealybug-tearoom-tests
+	url = https://github.com/mattcurrie/mealybug-tearoom-tests.git
