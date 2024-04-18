@@ -11,7 +11,7 @@ TESTS := $(shell find mooneye-test-suite/build/acceptance -name '*.gb' -print) \
 # TESTS := $(shell find mooneye-test-suite/build/acceptance/serial -name '*.gb' -print)			 	# serial only
 # TESTS := $(shell find mooneye-test-suite/build/acceptance/timer -name '*.gb' -print) 				# timer only
 # TESTS := $(shell find mooneye-test-suite/build/emulator-only -name '*.gb' -print) 						# emulator only
-TESTS := $(shell find mooneye-test-suite/build/emulator-only/mbc1 -name '*.gb' -print) 				# mbc1 only
+TESTS := $(shell find mooneye-test-suite/build/emulator-only/mbc2 -name '*.gb' -print) 				# mbc2 only
 
 all: mooneye
 

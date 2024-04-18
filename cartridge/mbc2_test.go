@@ -9,7 +9,7 @@ import (
 func TestMBC2Mapper_Write(t *testing.T) {
 	t.Run("ram enable !0A", func(t *testing.T) {
 		for i := 0; i <= 0x100; i++ {
-			if i != 0x0A {
+			if i&0xA != 0xA {
 				mbc := &MBC2Mapper{RAMEnable: true, Bank: 0xFF}
 				mbc.Write(0x0000, uint8(i))
 				assert.False(t, mbc.RAMEnable)
@@ -33,8 +33,12 @@ func TestMBC2Mapper_Write(t *testing.T) {
 				if wanted == 0 {
 					wanted = 1
 				}
-				assert.EqualValues(t, wanted, mbc.Bank)
-				assert.False(t, mbc.RAMEnable)
+				if !assert.EqualValues(t, wanted, mbc.Bank) {
+					return
+				}
+				if !assert.False(t, mbc.RAMEnable) {
+					return
+				}
 			}
 		}
 	})

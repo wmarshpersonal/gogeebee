@@ -53,9 +53,9 @@ func (mbc *MBC2Mapper) Read(addr uint16) uint8 {
 		return mbc.data[mbc2ROMNReadAddress(addr, mbc.ROMSize.Banks(), mbc.Bank)]
 	} else if addr >= 0xA000 && addr <= 0xBFFF { // ram
 		if !mbc.RAMEnable {
-			return 0xF
+			return 0xFF
 		}
-		return mbc.RAM[addr&0x1FF] & 0xF
+		return 0xF0 | mbc.RAM[addr&0x1FF]&0xF
 	}
 
 	return 0xFF
@@ -64,12 +64,12 @@ func (mbc *MBC2Mapper) Read(addr uint16) uint8 {
 func (mbc *MBC2Mapper) Write(addr uint16, v uint8) {
 	if addr <= 0x3FFF { // register
 		if addr&0x100 == 0 { // ram enable
-			mbc.RAMEnable = v == 0x0A
-		} else {
-			if v&0xF == 0 {
-				v |= 1
-			}
+			mbc.RAMEnable = v&0xF == 0xA
+		} else { // rom
 			mbc.Bank = v & 0xF
+			if mbc.Bank == 0 {
+				mbc.Bank = 1
+			}
 		}
 	} else if addr >= 0xA000 && addr <= 0xBFFF { // ram
 		if mbc.RAMEnable {
