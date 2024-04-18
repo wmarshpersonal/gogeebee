@@ -1,6 +1,6 @@
 .PHONY: clean all test
 
-SRC := $(wildcard ../../**/*.go) main.go
+SRC := $(wildcard ../../../**/*.go) main.go
 TESTS := $(shell find mooneye-test-suite/build/acceptance -name '*.gb' -print) \
 	$(shell find mooneye-test-suite/build/emulator-only -name '*.gb' -print)
 # TESTS := $(shell find mooneye-test-suite/build/acceptance/bits -name '*.gb' -print)					# bits only

@@ -1,6 +1,6 @@
 .PHONY: clean all
 
-SRC := $(wildcard ../../**/*.go) main.go
+SRC := $(wildcard ../../../**/*.go) main.go
 TARGETS := result.png result.txt result-diff.png
 
 all: $(TARGETS)

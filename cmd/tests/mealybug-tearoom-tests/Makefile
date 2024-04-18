@@ -1,6 +1,6 @@
 .PHONY: clean all
 
-SRC := $(wildcard ../../**/*.go) main.go
+SRC := $(wildcard ../../../**/*.go) main.go
 EXPECTED := $(wildcard mealybug-tearoom-tests/expected/DMG-blob/*.png)
 TESTS := $(basename $(notdir $(EXPECTED)))
 RESULT_PNGS := $(addprefix results/, $(addsuffix .png, $(notdir $(TESTS))))
