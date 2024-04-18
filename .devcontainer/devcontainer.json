@@ -15,7 +15,7 @@
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		"ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
-				"packages": "imagemagick"
+				"packages": " gcc,g++,build-essential,cmake,imagemagick"
 		},
 		"ghcr.io/azutake/devcontainer-features/go-packages-install:0": {
 			"PACKAGES": "golang.org/x/tools/cmd/stringer@latest"
@@ -26,7 +26,7 @@
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "/bin/bash ./.devcontainer/postcreate.sh",
+	"postCreateCommand": "/bin/bash ./.devcontainer/postcreate.sh",
 
 	// Configure tool-specific properties.
 	// "customizations": {},

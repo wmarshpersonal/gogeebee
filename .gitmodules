@@ -1,3 +1,6 @@
 [submodule "cmd/mealybug-tearoom-tests/mealybug-tearoom-tests"]
 	path = cmd/mealybug-tearoom-tests/mealybug-tearoom-tests
 	url = https://github.com/mattcurrie/mealybug-tearoom-tests.git
+[submodule "cmd/mooneye/mooneye-test-suite"]
+	path = cmd/mooneye/mooneye-test-suite
+	url = https://github.com/Gekkio/mooneye-test-suite.git
