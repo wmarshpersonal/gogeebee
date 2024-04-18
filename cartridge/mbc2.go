@@ -66,10 +66,10 @@ func (mbc *MBC2Mapper) Write(addr uint16, v uint8) {
 		if addr&0x100 == 0 { // ram enable
 			mbc.RAMEnable = v&0xF == 0xA
 		} else { // rom
-			mbc.Bank = v & 0xF
-			if mbc.Bank == 0 {
-				mbc.Bank = 1
+			if v&0xF == 0 {
+				v |= 1
 			}
+			mbc.Bank = v & 0xF
 		}
 	} else if addr >= 0xA000 && addr <= 0xBFFF { // ram
 		if mbc.RAMEnable {
@@ -79,9 +79,9 @@ func (mbc *MBC2Mapper) Write(addr uint16, v uint8) {
 }
 
 func mbc2ROMNReadAddress(addr uint16, banks int, bankRegister uint8) int {
-	var bank int = int(bankRegister&0xF) & (banks - 1)
-	if bank == 0 {
-		bank |= 1
+	if bankRegister&0xF == 0 {
+		bankRegister |= 1
 	}
+	var bank int = int(bankRegister&0xF) & (banks - 1)
 	return int(addr&0x3FFF) | bank<<14
 }

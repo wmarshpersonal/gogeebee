@@ -56,7 +56,7 @@ func Test_mbc2ROMNReadAddress(t *testing.T) {
 	}{
 		{"32KB, bank 0 -> 1", args{ROM_32KB, 0x0}, 0x1},
 		{"32KB, bank 1 -> 1", args{ROM_32KB, 0x1}, 0x1},
-		{"32KB, bank 2 -> 1", args{ROM_32KB, 0x2}, 0x1},
+		{"32KB, bank 2 -> 0", args{ROM_32KB, 0x2}, 0x0},
 		{"32KB, bank 3 -> 1", args{ROM_32KB, 0x3}, 0x1},
 		{"32KB, bank F -> 1", args{ROM_32KB, 0xF}, 0x1},
 		{"256KB, bank 0", args{ROM_256KB, 0x0}, 0x1},
