@@ -33,7 +33,6 @@ func main() {
 			panicMark = '❗'
 		}
 		path, _ := strings.CutPrefix(os.Args[1], "mooneye-test-suite/build/")
-		path, _ = strings.CutPrefix(path, "acceptance/")
 		fmt.Fprintf(os.Stderr, "%s %s\t%s\n", string(mark), string(panicMark), path)
 		os.Exit(exitCode)
 	}()

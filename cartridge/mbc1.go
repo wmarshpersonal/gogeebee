@@ -110,7 +110,7 @@ func (mbc *MBC1Mapper) Write(addr uint16, v uint8) {
 		}
 		mbc.Registers[reg] = v
 	} else { // ram
-		if len(mbc.RAM) != 0 {
+		if len(mbc.RAM) != 0 && mbc.Registers[MBC1RAMEnable]&0xF == 0xA {
 			mbc.RAM[mbc1RAMAddress(addr, mbc.Mode(), mbc.RAMSize.Banks(), mbc.Registers[MBC1RAMROMUpper])] = v
 		}
 	}

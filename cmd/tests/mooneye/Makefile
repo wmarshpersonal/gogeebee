@@ -1,12 +1,22 @@
 .PHONY: clean all test
 
 SRC := $(wildcard ../../**/*.go) main.go
-TESTS := $(shell find mooneye-test-suite/build/acceptance -name '*.gb' -print) 
+TESTS := $(shell find mooneye-test-suite/build/acceptance -name '*.gb' -print) \
+	$(shell find mooneye-test-suite/build/emulator-only -name '*.gb' -print)
+# TESTS := $(shell find mooneye-test-suite/build/acceptance/bits -name '*.gb' -print)					# bits only
+# TESTS := $(shell find mooneye-test-suite/build/acceptance/instr -name '*.gb' -print) 				# instr only
+# TESTS := $(shell find mooneye-test-suite/build/acceptance/interrupts -name '*.gb' -print) 	# interrupts only
+# TESTS := $(shell find mooneye-test-suite/build/acceptance/oam_dma -name '*.gb' -print)		 	# oam_dma only
+# TESTS := $(shell find mooneye-test-suite/build/acceptance/ppu -name '*.gb' -print)				 	# ppu only
+# TESTS := $(shell find mooneye-test-suite/build/acceptance/serial -name '*.gb' -print)			 	# serial only
+# TESTS := $(shell find mooneye-test-suite/build/acceptance/timer -name '*.gb' -print) 				# timer only
+# TESTS := $(shell find mooneye-test-suite/build/emulator-only -name '*.gb' -print) 						# emulator only
+TESTS := $(shell find mooneye-test-suite/build/emulator-only/mbc1 -name '*.gb' -print) 				# mbc1 only
 
 all: mooneye
 
 test: .build/cmd
-	@for test in $(TESTS); do \
+	@for test in $(sort $(TESTS)); do \
 		.build/cmd $$test; \
 	done
 
