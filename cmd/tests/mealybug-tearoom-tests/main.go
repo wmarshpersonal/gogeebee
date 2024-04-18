@@ -31,7 +31,21 @@ func main() {
 		ab = make([]byte, 0)
 	)
 
-	gb.RunFor(1000000, &pb, &ab)
+	const bail = 10 * 4_194_304 // 10 seconds of cpu time
+	var (
+		i      int
+		bailed bool
+	)
+	for !bailed {
+		gb.RunFor(1, &pb, &ab)
+		if gb.CPU.IR == 0x40 { // LD B, B soft breakpoint
+			break
+		}
+		i++
+		if i > bail {
+			bailed = true
+		}
+	}
 
 	palette := []color.Gray{
 		{0xFF},
@@ -45,6 +59,9 @@ func main() {
 	for j := 0; j < 144; j++ {
 		for i := 0; i < 160; i++ {
 			img.Set(i, j, palette[pb.At(i, j)])
+			if bailed {
+				img.Set(i, j, color.RGBA{0xFF, 0x00, 0x00, 0xFF})
+			}
 		}
 	}
 
