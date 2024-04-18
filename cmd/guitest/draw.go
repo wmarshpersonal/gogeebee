@@ -22,7 +22,9 @@ var palette = [4]color.Color{
 func (g *Game) Draw(screen *ebiten.Image) {
 	frame, ok := g.sync.tryConsumeFrame()
 
-	if ok {
+	if !ok {
+		// slog.Debug("frame underrun")
+	} else {
 		var pp ppu.PackedPixels
 		for y := 0; y < ppu.ScreenHeight; y++ {
 			for x := 0; x < ppu.ScreenWidth; x += 4 {

@@ -27,7 +27,7 @@ func GetPixel(p PackedPixels, i int) (value byte) {
 // Returns the updated pixel.
 // i is interpreted as i&3.
 // value is interpreted as value&3.
-func SetPixel[T constraints.Integer](p PackedPixels, i int, value T) PackedPixels {
+func SetPixel[T constraints.Integer](p PackedPixels, i uint8, value T) PackedPixels {
 	shift := 6 - 2*(i&3)
 	mask := ^byte(3 << shift)
 	p = PackedPixels((byte(p) & mask) | byte(value&3)<<shift)
@@ -47,8 +47,8 @@ func (b *PixelBuffer) At(x, y int) byte {
 // Set writes the pixel at the screen position x, y.
 // Written pixel will be value % 4.
 // Out of range x & y may panic.
-func (b *PixelBuffer) Set(x, y int, value byte) {
-	p := &(*b)[x>>2+(y*ScreenWidth)>>2]
+func (b *PixelBuffer) Set(x, y uint8, value byte) {
+	p := &(*b)[uint(x)>>2+(uint(y)*ScreenWidth)>>2]
 	*p = SetPixel(*p, x, value)
 }
 
@@ -64,12 +64,13 @@ func (sl scanline) at(x int) byte {
 	return GetPixel(sl[x>>2], x&3)
 }
 
-func (sl scanline) set(x int, value byte) {
+func (sl scanline) set(x uint8, value byte) {
 	sl[x>>2] = SetPixel(sl[x>>2], x&3, value)
 }
 
 // objPixel is the data needed for the mixer to present an object pixel.
 type objPixel struct {
-	value uint8
-	flags uint8
+	value    uint8
+	priority bool
+	palette  bool
 }

@@ -56,7 +56,7 @@ func TestSetPixel(t *testing.T) {
 	assert.Equal(t, [4]byte{3, 1, 0, 2}, SpreadPixels(p))
 
 	// overflow
-	for i := 0; i < 100; i += 4 {
+	for i := uint8(0); i < 100; i += 4 {
 		p = SetPixel(p, i, i)     // i&3 = 0
 		p = SetPixel(p, i+1, i+1) // (i+1)&3 = 1
 		p = SetPixel(p, i+2, i+2) // (2+1)&3 = 2
@@ -73,8 +73,8 @@ func TestPixelBuffer(t *testing.T) {
 	)
 
 	r = rand.New(rand.NewSource(seed))
-	for y := 0; y < ScreenHeight; y++ {
-		for x := 0; x < ScreenHeight; x++ {
+	for y := uint8(0); y < ScreenHeight; y++ {
+		for x := uint8(0); x < ScreenHeight; x++ {
 			b.Set(x, y, uint8(r.Intn(4)))
 		}
 	}

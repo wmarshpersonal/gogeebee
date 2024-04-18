@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ebitengine/oto/v3"
+	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/wmarshpersonal/gogeebee/cartridge"
 	"github.com/wmarshpersonal/gogeebee/gb"
@@ -58,10 +59,12 @@ func initGame(romData []byte) (*Game, error) {
 	time.AfterFunc(math.MaxInt64, func() { runtime.KeepAlive(p) })
 
 	const bufferSize = 12288
-	p.SetBufferSize(12288)
+	p.SetBufferSize(bufferSize)
 
 	p.Play()
 	// defer p.Close()
+
+	droppedFrames := logDroppedFrames()
 
 	go func() {
 		var (
@@ -72,25 +75,21 @@ func initGame(romData []byte) (*Game, error) {
 		for {
 			g.gb.ProcessJoypad(ReadButtons(), ReadDirections())
 			drawn := g.gb.RunFor(gb.TCyclesPerSecond*(bufferSize/8)/sampleRate, &frame, &apuSamples)
-			var dropped bool
-			if drawn > 0 {
-				dropped = g.sync.addFrame(frame)
+			for range drawn {
+				droppedFrames <- g.sync.addFrame(frame)
 			}
 			samples = samples[:0]
 			const samplesPerFrame = bufferSize / 4 / chs
 			var inc = float64(len(apuSamples)) / samplesPerFrame
 			var i int
 			for i = 0; i < samplesPerFrame; i++ {
-				sample := (float32(apuSamples[int(float64(i)*inc)])/0xF - 0.5)
+				sample := 0.05 * (float32(apuSamples[int(float64(i)*inc)])/0xF - 0.5)
 				bits := math.Float32bits(sample)
 				samples = append(samples, byte(bits), byte(bits>>8), byte(bits>>16), byte(bits>>24))
 				samples = append(samples, byte(bits), byte(bits>>8), byte(bits>>16), byte(bits>>24))
 			}
 			apuSamples = apuSamples[:0]
 			g.sync.addSamples(samples)
-			if dropped {
-				slog.Debug("dropped frame")
-			}
 		}
 	}()
 
@@ -104,4 +103,29 @@ type audioStream struct {
 func (w *audioStream) Read(p []byte) (n int, err error) {
 	n = w.sync.waitConsumeSamples(p)
 	return
+}
+
+func logDroppedFrames() chan<- bool {
+	ch := make(chan bool, 60)
+	t := time.NewTicker(time.Second)
+	go func() {
+		var total, dropped int
+		for {
+			select {
+			case v := <-ch:
+				if v {
+					dropped++
+				}
+				total++
+			case <-t.C:
+				slog.Debug("frame report",
+					"fps", ebiten.ActualFPS(),
+					"total", total,
+					"dropped", dropped,
+				)
+				total, dropped = 0, 0
+			}
+		}
+	}()
+	return ch
 }

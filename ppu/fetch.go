@@ -1,158 +1,63 @@
 package ppu
 
-// fetch represents the state of a PPU pixel fetch.
-type fetch struct {
-	step                   fetchStep
-	tileX                  int
-	tileNo                 int
-	tileAddr               int
-	tileDataLo, tileDataHi uint8
-}
-
-type fetchStep int
+type TileAddressingMode bool
 
 const (
-	fetchTile0 fetchStep = iota
-	fetchTile1
-	fetchDataLo0
-	fetchDataLo1
-	fetchDataHi0
-	fetchDataHi1
-	push
+	Addr8000 TileAddressingMode = true
+	Addr8800                    = !Addr8000
 )
 
-func (f *fetch) fetchBg(
-	vram []byte,
-	registers registers,
-	fifo *fifo[uint8],
-) {
-	switch f.step {
-	case fetchDataLo0, fetchDataHi0:
-		f.step++
-	case fetchTile0:
-		f.step++
-	case fetchTile1:
-		tileMapAddr := tileMap0Address
-		if registers[LCDC]&BGTileMapMask != 0 {
-			tileMapAddr = tileMap1Address
-		}
-		var offset int
-		offset += (f.tileX + int(registers[SCX]/8)) & 0x1F
-		offset += int(32 * (((int(registers[LY]) + int(registers[SCY])) & 0xFF) / 8))
-		f.tileNo = int(vram[(tileMapAddr+offset&0x3FF)&0x1FFF])
-		f.step++
-	case fetchDataLo1:
-		var addrMode tileAddressingMode = base8800
-		if registers[LCDC]&BGDataAreaMask != 0 {
-			addrMode = base8000
-		}
-		f.tileAddr = translateTileDataAddress(addrMode, f.tileNo)
-		f.tileAddr += 2 * int((registers[LY]+registers[SCY])%8)
-		f.tileDataLo = vram[f.tileAddr&0x1FFF]
-		f.step++
-	case fetchDataHi1:
-		f.tileDataHi = vram[(f.tileAddr+1)&0x1FFF]
-		f.step++
-	case push:
-		if fifo.size == 0 {
-			for i := 0; i < 8; i++ {
-				fifo.push(makeTilePixel(f.tileDataHi, f.tileDataLo, i, false))
-			}
-			f.tileX++
-			f.step = 0
-		}
+func tileAddress(addressing TileAddressingMode, tileNum uint8, scrolledY uint8) uint16 {
+	if addressing == Addr8000 {
+		return uint16(tileNum)<<4 | uint16((scrolledY&7)<<1)
+	} else {
+		return uint16(0x1000+int(int8(uint8(tileNum)))<<4) | uint16((scrolledY&7)<<1)
 	}
 }
 
-func (f *fetch) fetchWindow(
-	vram []byte,
-	registers registers,
-	fifo *fifo[uint8],
-	windowLines int,
-) {
-	switch f.step {
-	case fetchTile0, fetchDataLo0, fetchDataHi0:
-		f.step++
-	case fetchTile1:
-		tileMapAddr := tileMap0Address
-		if registers[LCDC]&WindowTileMapMask != 0 {
-			tileMapAddr = tileMap1Address
-		}
-		var offset int
-		offset += f.tileX & 0x1F
-		offset += 32 * (windowLines / 8)
-		f.tileNo = int(vram[(tileMapAddr+offset&0x3FF)&0x1FFF])
-		f.step++
-	case fetchDataLo1:
-		var addrMode tileAddressingMode = base8800
-		if registers[LCDC]&BGDataAreaMask != 0 {
-			addrMode = base8000
-		}
-		f.tileAddr = translateTileDataAddress(addrMode, f.tileNo)
-		f.tileAddr += 2 * (windowLines % 8)
-		f.tileDataLo = vram[f.tileAddr&0x1FFF]
-		f.step++
-	case fetchDataHi1:
-		f.tileDataHi = vram[(f.tileAddr+1)&0x1FFF]
-		f.step++
-	case push:
-		if fifo.size == 0 {
-			for i := 0; i < 8; i++ {
-				fifo.push(makeTilePixel(f.tileDataHi, f.tileDataLo, i, false))
-			}
-			f.tileX++
-			f.step = 0
-		}
-	}
+type fetcherType int
+
+const (
+	bgDiscard fetcherType = iota
+	bg
+	windowInit
+	window
+	obj
+)
+
+type fetchState int
+
+const (
+	_ fetchState = iota
+	fetchTileIndex
+	_
+	fetchTileDataLo
+	_
+	fetchTileDataHi
+	push
+	complete = push
+)
+
+type pixelFetcher struct {
+	state                   fetchState
+	tileLo, tileHi, tileNum uint8
 }
 
-func (f *fetch) fetchObj(
-	vram []byte,
-	registers registers,
-	fifo *fifo[objPixel],
-	obj Object,
-) {
-	switch f.step {
-	case fetchTile0, fetchDataLo0, fetchDataHi0:
-		f.step++
-	case fetchTile1:
-		f.tileNo = int(obj.Tile)
-		f.step++
-	case fetchDataLo1:
-		var addrMode tileAddressingMode = base8000
-		f.tileAddr = translateTileDataAddress(addrMode, f.tileNo)
-		if obj.Flags&FlipY != 0 {
-			f.tileAddr += 14 - 2*int((registers[LY]+16-obj.Y)%8)
+func fetch(fetcher *pixelFetcher, vram []byte, addressing TileAddressingMode, tileNum, y uint8) {
+	switch fetcher.state {
+	case fetchTileIndex:
+		fetcher.tileNum = tileNum
+		fetcher.state++
+	case fetchTileDataLo, fetchTileDataHi:
+		tileAddr := tileAddress(addressing, fetcher.tileNum, y)
+		if fetcher.state == fetchTileDataLo {
+			fetcher.tileLo = vram[tileAddr]
 		} else {
-			f.tileAddr += 2 * int((registers[LY]+16-obj.Y)%8)
+			fetcher.tileHi = vram[tileAddr+1]
 		}
-		f.tileDataLo = vram[f.tileAddr&0x1FFF]
-		f.step++
-	case fetchDataHi1:
-		f.tileDataHi = vram[(f.tileAddr+1)&0x1FFF]
-		f.step++
+		fetcher.state++
 	case push:
-		flipX := obj.Flags&FlipX != 0
-		for i := 0; i < 8; i++ {
-			if int(obj.X)+i >= 8 {
-				objP := objPixel{makeTilePixel(f.tileDataHi, f.tileDataLo, i, flipX), uint8(obj.Flags)}
-				if existing, ok := fifo.at(uint(i)); ok {
-					if existing.value == 0 && objP.value != 0 {
-						fifo.replace(uint(i), objP)
-					}
-				} else {
-					fifo.push(objP)
-				}
-			}
-		}
-		f.tileX++
-		f.step = 0
+	default:
+		fetcher.state++
 	}
-}
-
-func makeTilePixel(hi, lo uint8, i int, flip bool) uint8 {
-	if !flip {
-		i = 7 - i
-	}
-	return (lo>>i)&1 | (((hi >> i) & 1) << 1)
 }

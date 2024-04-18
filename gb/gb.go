@@ -27,8 +27,8 @@ type GB struct {
 	VRAM  [0x2000]byte
 	WRAM0 [0x2000]byte
 	WRAM1 [0x2000]byte
-	OAM   [ppu.OAMSize]byte
-	HRAM  [0x7F]byte
+	// OAM RAM is in PPU
+	HRAM [0x7F]byte
 	// IO
 	JOYP Joy1
 
@@ -81,12 +81,12 @@ func (gb *GB) RunFor(cycles int, frame *ppu.PixelBuffer, audio *[]uint8) (drawn 
 // run for one t-cycle
 func (gb *GB) stepHardware() (apuSample uint8) {
 	// ppu
-	prevVblankLine := gb.PPU.VBLANKLine
+	prevVblankLine := gb.PPU.VBlankLine
 	prevStatLine := gb.PPU.STATLine
-	gb.PPU.StepT(gb.VRAM[:], gb.OAM[:], &gb.lcd)
+	gb.PPU.StepT(gb.VRAM[:], &gb.lcd)
 
 	// ppu interrupts
-	if gb.PPU.VBLANKLine && !prevVblankLine {
+	if gb.PPU.VBlankLine && !prevVblankLine {
 		gb.CPU.IF |= 1
 	}
 	if gb.PPU.STATLine && !prevStatLine {
@@ -123,7 +123,7 @@ func (gb *GB) stepHardware() (apuSample uint8) {
 		if gb.PPU.DMA.Mode == ppu.DMATransfer {
 			dmaData = gb.Read(gb.PPU.DMA.Address)
 		}
-		gb.PPU.DMA.StepM(gb.OAM[:], dmaData)
+		gb.PPU.DMA.StepM(&gb.PPU.OAM, dmaData)
 	}
 
 	gb.cycles++
@@ -147,7 +147,7 @@ func (gb *GB) Read(address uint16) (value uint8) {
 	case address >= 0xE000 && address <= 0xFDFF: // ECHO
 		value = gb.WRAM0[address&0x1FFF]
 	case address >= 0xFE00 && address <= 0xFE9F:
-		value = gb.OAM[address&0xFF]
+		value = gb.PPU.OAM[address&0xFF]
 	case address >= 0xFF00 && address <= 0xFF7F:
 		value = gb.ReadIO(uint8(address) & 0x7F)
 	case address >= 0xFF80 && address <= 0xFFFE:
@@ -281,7 +281,7 @@ func (gb *GB) Write(address uint16, value uint8) {
 	case address >= 0xE000 && address <= 0xFDFF: // ECHO
 		gb.WRAM0[address&0x1FFF] = value
 	case address >= 0xFE00 && address <= 0xFE9F:
-		gb.OAM[address&0xFF] = value
+		gb.PPU.OAM[address&0xFF] = value
 	case address >= 0xFF00 && address <= 0xFF7F:
 		gb.WriteIO(uint8(address)&0x7F, value)
 	case address >= 0xFF80 && address <= 0xFFFE:

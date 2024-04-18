@@ -1,9 +1,7 @@
 package ppu
 
-type Register uint8
-
 const (
-	LCDC Register = iota
+	LCDC = iota
 	STAT
 	SCY
 	SCX
@@ -17,6 +15,7 @@ const (
 	WX
 )
 
+// lcdc masks
 const (
 	BGEnabledMask uint8 = 1 << iota
 	OBJEnabledMask
@@ -28,8 +27,9 @@ const (
 	LCDEnabledMask
 )
 
+// stat masks
 const (
-	PPUModeMask     uint8 = 0b11
+	PPUModeMask     uint8 = 3
 	CoincidenceMask uint8 = 1 << (iota + 1)
 	Mode0IntEnableMask
 	Mode1IntEnableMask
@@ -38,3 +38,22 @@ const (
 )
 
 type registers [12]uint8
+
+func (r *registers) Read(i int) uint8 {
+	switch i {
+	case STAT:
+		return r[STAT] | 0x80
+	default:
+		return r[i]
+	}
+}
+
+func (r *registers) Write(i int, value uint8) {
+	switch i {
+	case STAT:
+		(*r)[STAT] = (*r)[STAT]&7 | value&^7
+	case LY:
+	default:
+		r[i] = value
+	}
+}

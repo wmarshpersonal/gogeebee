@@ -1,7 +1,5 @@
 package ppu
 
-const OAMSize int = 0xA0
-
 type DMAMode int
 
 const (
@@ -17,7 +15,7 @@ type DMAUnit struct {
 	Address uint16
 }
 
-func (dma *DMAUnit) StepM(oam []byte, value byte) {
+func (dma *DMAUnit) StepM(oam *OAMMem, value byte) {
 	switch dma.Mode {
 	case DMAIdle:
 	case DMAStartup:
@@ -26,7 +24,7 @@ func (dma *DMAUnit) StepM(oam []byte, value byte) {
 		oam[dma.i] = value
 		dma.i++
 		dma.Address++
-		if dma.i == OAMSize { // reset
+		if dma.i == len(oam) { // reset
 			*dma = DMAUnit{}
 		}
 	default:
