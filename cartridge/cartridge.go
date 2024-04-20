@@ -27,6 +27,8 @@ func Load(data []byte) (MBC, error) {
 		return NewMBC1Mapper(data)
 	case MBC2, MBC2_Battery:
 		return NewMBC2Mapper(data)
+	case MBC5, MBC5_RAM, MBC5_RAM_Battery, MBC5_Rumble, MBC5_Rumble_RAM:
+		return NewMBC5Mapper(data)
 	default:
 		return nil, fmt.Errorf("unsupported cartridge type: %d (%[1]s)", mbcType)
 	}

@@ -2,7 +2,6 @@ package cartridge
 
 import (
 	"fmt"
-	"slices"
 
 	"go.uber.org/multierr"
 )
@@ -24,10 +23,8 @@ const (
 	AdvancedBanking MBC1Mode = 1
 )
 
-type MBC1Register int
-
 const (
-	MBC1RAMEnable MBC1Register = iota
+	MBC1RAMEnable int = iota
 	MBC1ROMBank
 	MBC1RAMROMUpper
 	MBC1ModeSelect
@@ -59,7 +56,7 @@ func NewMBC1Mapper(cartridge Cartridge) (*MBC1Mapper, error) {
 	}
 
 	return &MBC1Mapper{
-		data:    slices.Clip(cartridge[:rom.Size()]),
+		data:    cartridge[:rom.Size()],
 		RAM:     make([]byte, ram.Size()),
 		ROMSize: rom,
 		RAMSize: ram,
@@ -97,8 +94,8 @@ func (mbc *MBC1Mapper) Read(addr uint16) uint8 {
 
 func (mbc *MBC1Mapper) Write(addr uint16, v uint8) {
 	if addr <= 0x7FFF { // registers
-		reg := MBC1Register(((addr >> 12) & 0xF) >> 1)
-		switch reg {
+		reg := ((addr >> 12) & 0xF) >> 1
+		switch int(reg) {
 		case MBC1ModeSelect:
 			v = v & 1
 		case MBC1ROMBank:

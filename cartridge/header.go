@@ -214,7 +214,7 @@ func (romSize ROMSize) Banks() (banks int) {
 
 // Size returns the ROM size in bytes.
 func (romSize ROMSize) Size() int {
-	return 0x4000 * romSize.Banks()
+	return romSize.Banks() << 14
 }
 
 func (romSize ROMSize) String() string {

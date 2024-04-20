@@ -2,7 +2,6 @@ package cartridge
 
 import (
 	"fmt"
-	"slices"
 
 	"go.uber.org/multierr"
 )
@@ -41,7 +40,7 @@ func NewMBC2Mapper(cartridge Cartridge) (*MBC2Mapper, error) {
 	}
 
 	return &MBC2Mapper{
-		data:    slices.Clip(cartridge[:rom.Size()]),
+		data:    cartridge[:rom.Size()],
 		ROMSize: rom,
 	}, nil
 }
