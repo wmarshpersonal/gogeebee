@@ -12,7 +12,7 @@ TESTS := $(shell find mooneye-test-suite/build/acceptance -name '*.gb' -print) \
 # TESTS := $(shell find mooneye-test-suite/build/acceptance/timer -name '*.gb' -print) 				# timer only
 # TESTS := $(shell find mooneye-test-suite/build/emulator-only -name '*.gb' -print) 					# emulator only
 
-all: mooneye
+all: mooneye .build/cmd
 
 test: .build/cmd
 	@for test in $(sort $(TESTS)); do \

@@ -22,18 +22,24 @@ func main() {
 	}
 
 	var (
-		exitCode  = 0
-		mark      = '✅'
-		panicMark = ' '
+		timedOut bool
+		exitCode int
+		mark     = '✅'
 	)
 	defer func() {
+		var (
+			statusMark = ' '
+		)
+		if timedOut {
+			statusMark = '⏰'
+		}
 		if r := recover(); r != nil {
 			exitCode = 1
 			mark = '❌'
-			panicMark = '❗'
+			statusMark = '❗'
 		}
 		path, _ := strings.CutPrefix(os.Args[1], "mooneye-test-suite/build/")
-		fmt.Fprintf(os.Stderr, "%s %s\t%s\n", string(mark), string(panicMark), path)
+		fmt.Fprintf(os.Stderr, "%s %s\t%s\n", string(mark), string(statusMark), path)
 		os.Exit(exitCode)
 	}()
 
@@ -43,21 +49,24 @@ func main() {
 	}
 
 	var (
-		gb = gb.NewDMG(mbc)
-		pb ppu.PixelBuffer
-		ab = make([]byte, 0)
+		gameboy = gb.NewDMG(mbc)
+		pb      ppu.PixelBuffer
+		ab      = make([]byte, 0)
 	)
 
-	for {
-		gb.RunFor(1, &pb, &ab)
-		if gb.CPU.IR == 0x40 { // LD B, B soft breakpoint
-			break
-		}
+	const timeout = 10 * gb.TCyclesPerSecond
+	var hitBreakpoint bool
+	for i := 0; i < timeout && !hitBreakpoint; i++ {
+		gameboy.RunFor(1, &pb, &ab)
+		hitBreakpoint = gameboy.CPU.IR == 0x40 // LD B, B soft breakpoint
+	}
+	if !hitBreakpoint {
+		timedOut = true
 	}
 
 	expected := []byte{3, 5, 8, 13, 21, 34}
-	regs := []byte{gb.CPU.B, gb.CPU.C, gb.CPU.D, gb.CPU.E, gb.CPU.H, gb.CPU.L}
-	passed := slices.Compare(expected, regs) == 0
+	regs := []byte{gameboy.CPU.B, gameboy.CPU.C, gameboy.CPU.D, gameboy.CPU.E, gameboy.CPU.H, gameboy.CPU.L}
+	passed := hitBreakpoint && slices.Compare(expected, regs) == 0
 	if !passed {
 		exitCode = 1
 		mark = '❌'

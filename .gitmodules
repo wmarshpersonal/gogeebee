@@ -4,3 +4,6 @@
 [submodule "cmd/tests/mooneye/mooneye-test-suite"]
 	path = cmd/tests/mooneye/mooneye-test-suite
 	url = https://github.com/Gekkio/mooneye-test-suite.git
+[submodule "cmd/tests/blargg-test-roms/gb-test-roms"]
+	path = cmd/tests/blargg-test-roms/gb-test-roms
+	url = https://github.com/retrio/gb-test-roms.git
