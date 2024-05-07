@@ -13,7 +13,7 @@ func TestTimer_Counter(t *testing.T) {
 		for expected := range 256 {
 			for range 256 {
 				assert.EqualValues(t, expected, timer.Read(DIV))
-				timer.StepT()
+				timer.Step()
 			}
 		}
 	})
@@ -25,7 +25,7 @@ func TestTimer_Counter(t *testing.T) {
 		timer.Write(DIV, 0xAA)
 		assert.EqualValuesf(1, timer.Read(DIV), "counter should still be at 1 until next step")
 		// step
-		timer.StepT()
+		timer.Step()
 		assert.EqualValuesf(0, timer.Read(DIV), "counter should have reset now")
 	})
 }
@@ -39,7 +39,7 @@ func TestTimer_TIMA(t *testing.T) {
 		var timer Timer = Timer{TimerRegs: TimerRegs{tac: tac}}
 		for range 4 * mCycles {
 			assert.EqualValues(t, 0, timer.Read(TIMA))
-			timer.StepT()
+			timer.Step()
 		}
 		// now it should be 1
 		assert.EqualValues(t, 1, timer.Read(TIMA))
@@ -52,7 +52,7 @@ func TestTimer_TIMA(t *testing.T) {
 		var timer Timer = Timer{TimerRegs: TimerRegs{tac: tac}}
 		for range 4 * mCycles {
 			assert.EqualValues(t, 0, timer.Read(TIMA))
-			timer.StepT()
+			timer.Step()
 		}
 		// now it should be 1
 		assert.EqualValues(t, 1, timer.Read(TIMA))
@@ -65,7 +65,7 @@ func TestTimer_TIMA(t *testing.T) {
 		var timer Timer = Timer{TimerRegs: TimerRegs{tac: tac}}
 		for range 4 * mCycles {
 			assert.EqualValues(t, 0, timer.Read(TIMA))
-			timer.StepT()
+			timer.Step()
 		}
 		// now it should be 1
 		assert.EqualValues(t, 1, timer.Read(TIMA))
@@ -78,7 +78,7 @@ func TestTimer_TIMA(t *testing.T) {
 		var timer Timer = Timer{TimerRegs: TimerRegs{tac: tac}}
 		for range 4 * mCycles {
 			assert.EqualValues(t, 0, timer.Read(TIMA))
-			timer.StepT()
+			timer.Step()
 		}
 		// now it should be 1
 		assert.EqualValues(t, 1, timer.Read(TIMA))
@@ -91,7 +91,7 @@ func TestTimer_TIMA(t *testing.T) {
 			expected := timer.tima
 			t.Run(fmt.Sprintf("TAC = $%02X", timer.tac), func(t *testing.T) {
 				for range 4096 {
-					timer.StepT()
+					timer.Step()
 					if got := timer.Read(TIMA); got != expected {
 						t.Errorf("expected $%02X, got $%02X", expected, got)
 					}
@@ -111,17 +111,17 @@ func TestTimer_Modulus(t *testing.T) {
 		timer.tma = 0x23
 
 		// step 1
-		timer.StepT()
+		timer.Step()
 		assert.Exactly(uint16(0x2F), timer.counter)
 		assert.Exactly(uint8(0xFF), timer.tima)
 
 		// step 2 - overflow
-		timer.StepT()
+		timer.Step()
 		assert.Exactly(uint16(0x30), timer.counter)
 		assert.Exactly(uint8(0x00), timer.tima)
 
 		// step 3 - set to TMA
-		timer.StepT()
+		timer.Step()
 		assert.Exactly(uint16(0x31), timer.counter)
 		assert.Exactly(uint8(0x23), timer.tima)
 	})

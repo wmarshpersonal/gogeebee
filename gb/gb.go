@@ -12,7 +12,6 @@ import (
 )
 
 const TCyclesPerSecond = 4_194_304
-const TCyclesPerRegularFrame = 70224
 
 type GB struct {
 	cycles uint64
@@ -30,8 +29,10 @@ type GB struct {
 	// OAM RAM is in PPU
 	HRAM [0x7F]byte
 	// IO
-	JOYP Joy1
+	JOYP   Joy1
+	Serial Serial
 
+	bus DMGBus
 	lcd ppu.PixelBuffer
 
 	dirs JoypadDirections
@@ -55,6 +56,7 @@ func (gb *GB) ProcessJoypad(btns JoypadButtons, dirs JoypadDirections) {
 	prevJoy := gb.JOYP.Read(gb.btns, gb.dirs)
 	curJoy := gb.JOYP.Read(btns, dirs)
 	for i := 0; i < 4; i++ {
+		// TODO: should this happen here?
 		if (prevJoy&(1<<i)) != 0 && (curJoy&(1<<i)) == 0 {
 			gb.CPU.IF |= 16
 		}
@@ -80,6 +82,46 @@ func (gb *GB) RunFor(cycles int, frame *ppu.PixelBuffer, audio *[]uint8) (drawn 
 
 // run for one t-cycle
 func (gb *GB) stepHardware() (apuSample uint8) {
+	//  dma
+	var (
+		dmaActive bool
+		dmaData   byte
+	)
+	if active, addr := gb.PPU.DMA.StartCycle(); active {
+		dmaActive = true
+		dmaData = gb.Read(addr)
+	}
+	gb.PPU.DMA.Step(&gb.PPU.OAM, dmaData)
+
+	// M-cycled CPU
+	// TODO: this is temporary, clocking CPU should not work this way
+	if gb.cycles%4 == 0 {
+		if !cpu.UpdateHalt(&gb.CPU) { // service cpu if not halted
+			cycle := cpu.FetchCycle(gb.CPU)
+			cycle = cpu.StartCycle(&gb.CPU, cycle)
+
+			// finish servicing cpu after data fetch/write
+			var data uint8
+			if cycle.Data.RD() { // RD
+				addr := cycle.Addr.Do(gb.CPU)
+				if dmaActive && addr < 0xFF80 { // TODO: temporary hard-coded logic
+					data = dmaData
+					if addr >= 0xFE00 && addr < 0xFEA0 {
+						data = 0xFF
+					}
+				} else {
+					data = gb.Read(addr)
+				}
+			} else if ok, v := cycle.Data.WR(gb.CPU, gb.CPU.IR); ok { // WR
+				addr := cycle.Addr.Do(gb.CPU)
+				if !dmaActive || addr >= 0xFF80 {
+					gb.Write(addr, v)
+				}
+			}
+			cpu.FinishCycle(&gb.CPU, cycle, data)
+		}
+	}
+
 	// ppu
 	prevVblankLine := gb.PPU.VBlankLine
 	prevStatLine := gb.PPU.STATLine
@@ -94,37 +136,18 @@ func (gb *GB) stepHardware() (apuSample uint8) {
 	}
 
 	// timer
-	gb.Timer.StepT()
-	if gb.Timer.IR {
+	gb.Timer.Step()
+	if gb.Timer.IR { // TODO: make Step return IR, not make it a field!
 		gb.CPU.IF |= 4
+	}
+
+	// serial
+	if serialInt := gb.Serial.Step(); serialInt {
+		gb.CPU.IF |= 8
 	}
 
 	// apu
 	apuSample = gb.APU.StepT(gb.Timer.Read(DIV))
-
-	// M-cycled components (CPU, DMA)
-	if gb.cycles%4 == 0 {
-		if !cpu.UpdateHalt(&gb.CPU) { // service cpu if not halted
-			cycle := cpu.FetchCycle(&gb.CPU)
-			cycle = cpu.StartCycle(&gb.CPU, cycle)
-
-			// finish servicing cpu after data fetch/write
-			var data uint8
-			if cycle.Data.RD() { // RD
-				data = gb.Read(cycle.Addr.Do(gb.CPU))
-			} else if ok, v := cycle.Data.WR(gb.CPU, gb.CPU.IR); ok { // WR
-				gb.Write(cycle.Addr.Do(gb.CPU), v)
-			}
-			cpu.FinishCycle(&gb.CPU, cycle, data)
-		}
-
-		// service dma
-		var dmaData byte
-		if gb.PPU.DMA.Mode == ppu.DMATransfer {
-			dmaData = gb.Read(gb.PPU.DMA.Address)
-		}
-		gb.PPU.DMA.StepM(&gb.PPU.OAM, dmaData)
-	}
 
 	gb.cycles++
 
@@ -169,6 +192,10 @@ func (gb *GB) ReadIO(port uint8) (value uint8) {
 	switch port {
 	case 0x00: // P1/JOYP
 		value = gb.JOYP.Read(gb.btns, gb.dirs)
+	case 0x01: // SB
+		value = gb.Serial.SB
+	case 0x02: // SC
+		value = gb.Serial.SC | 0x7E
 	case 0x04: // DIV
 		value = gb.Timer.Read(DIV)
 	case 0x05: // TIMA
@@ -301,6 +328,10 @@ func (gb *GB) WriteIO(port, value uint8) {
 	switch port {
 	case 0x00: // P1/JOYP
 		gb.JOYP.Write(value)
+	case 0x01: // SB
+		gb.Serial.WriteSB(value)
+	case 0x02: // SC
+		gb.Serial.WriteSC(value)
 	case 0x04: // DIV
 		gb.Timer.Write(DIV, value)
 	case 0x05: // TIMA

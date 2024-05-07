@@ -61,8 +61,8 @@ func (t *Timer) Write(reg TimerReg, v uint8) {
 	t.busData = v
 }
 
-// StepT advances the timer logic by one T-cycle.
-func (t *Timer) StepT() {
+// Step advances the timer logic by one T-cycle.
+func (t *Timer) Step() {
 	var (
 		prev      TimerRegs = t.TimerRegs
 		prevDelay uint8     = t.delay

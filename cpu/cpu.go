@@ -86,14 +86,7 @@ func UpdateHalt(s *State) (halted bool) {
 }
 
 // FetchCycle returns a copy of the next cycle to execute.
-func FetchCycle(s *State) (cycle Cycle) {
-	if s.S == 0 {
-		if s.IME && (s.IF&s.IE) != 0 {
-			s.IME = false
-			s.Interrupting = true
-		}
-	}
-
+func FetchCycle(s State) (cycle Cycle) {
 	if s.Interrupting {
 		return interruptOpcode[s.S]
 	}
@@ -158,5 +151,13 @@ func FinishCycle(s *State, cycle Cycle, data uint8) {
 	}
 	if cycle.Misc != 0 {
 		cycle.Misc.Do(s, opcode)
+	}
+
+	// dispatch interrupts
+	if s.S == 0 {
+		if s.IME && (s.IF&s.IE) != 0 {
+			s.IME = false
+			s.Interrupting = true
+		}
 	}
 }

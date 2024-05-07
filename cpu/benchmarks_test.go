@@ -9,7 +9,7 @@ func BenchmarkNOP(b *testing.B) {
 	)
 
 	for i := 0; i < b.N; i++ {
-		cycle = FetchCycle(&state)
+		cycle = FetchCycle(state)
 		cycle = StartCycle(&state, cycle)
 		FinishCycle(&state, cycle, 0)
 	}

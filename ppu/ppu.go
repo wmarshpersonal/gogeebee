@@ -81,7 +81,7 @@ func (ppu *PPU) ReadRegister(i int) uint8 {
 func (ppu *PPU) WriteRegister(i int, value uint8) {
 	if i == DMA {
 		ppu.reg[DMA] = value
-		ppu.DMA = DMAUnit{Mode: DMAStartup, Address: (uint16(value) << 8)}
+		ppu.DMA.WriteRegister(value)
 	}
 
 	ppu.reg.Write(i, value)
